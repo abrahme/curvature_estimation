@@ -18,6 +18,11 @@ arviz = "^0.16.1"
 sympy = "^1.12"
 geomstats = "^2.7.0"
 torch = "^2.1.1"
+nbformat = "^5.9.2"
+nbclient = "^0.9.0"
+jaxlib = "^0.4.22"
+blackjax = "^1.0.0"
+numpyro = "^0.13.2"
 
 
 [build-system]
