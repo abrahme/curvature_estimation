@@ -23,14 +23,14 @@ def vector_to_lower_triangular(vector: np.ndarray, dim_size: int):
 
 def make_diagonal_positive(array):
     n = array.shape[0]
-    array[np.diag_indices(n)] = np.square(np.diagonal(array))
+    array[np.diag_indices(n)] = np.exp(.5*np.diagonal(array))
     return array
 
 def compute_partial_derivatives(chol_value_array, partial_deriv_array, partial_dim: int = 0):
     partial_deriv_array_dim = partial_deriv_array[:,:,partial_dim]
-    x = 4 * np.power( chol_value_array[:,0,0] , 3/2) * partial_deriv_array_dim[:,0]
-    y = partial_deriv_array_dim[:,1] * chol_value_array[:,0,0] + 2 * chol_value_array[:,1,0] * partial_deriv_array_dim[:,0] * np.sqrt(chol_value_array[:,0,0])
-    z = x + 2*y*chol_value_array[:,0,0]*chol_value_array[:,1,0]
+    x = partial_deriv_array_dim[:,0] * np.square(chol_value_array[:,0,0])
+    y = partial_deriv_array_dim[:,1] * chol_value_array[:,1,0] + .5 * chol_value_array[:,1,0] * partial_deriv_array_dim[:,0]*chol_value_array[:,1,0]
+    z = x + 2*y*chol_value_array[:,1,0]*chol_value_array[:,0,0]
     return np.stack([np.stack([x, y], axis = -1),np.stack([y, z], axis = -1)], axis = -1)
 
 
@@ -141,6 +141,20 @@ class TwoDimensionalGaussianProcessRiemmanianMetric(RiemannianMetric):
         ### some chain rule 
         partials = np.stack([compute_partial_derivatives(gp_eval_chol, gp_derivative_evaluation, i) for i in range(n_dims)], axis = -1)
         return partials
+
+    def cometric_matrix(self, base_point=None):
+        metric_matrix = self.metric_matrix(base_point)
+        determinant = 1 /(metric_matrix[:,0,0]*metric_matrix[:,1,1] - np.square(metric_matrix[:,0,1]))
+
+        x = metric_matrix[:,0,0] * determinant
+        y = metric_matrix[:,0,1] * determinant
+        z = metric_matrix[:,1,1] * determinant
+
+        cometric_matrix = np.stack([np.stack([z, -y], axis = -1),np.stack([-y, x], axis = -1)], axis = -1)
+
+        return cometric_matrix
+
+
 
     
 

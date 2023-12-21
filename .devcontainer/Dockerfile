@@ -45,7 +45,7 @@ RUN pip install pip install -U "jax[cuda12_pip]" -f https://storage.googleapis.c
 RUN pip install numpyro[cuda] -f https://storage.googleapis.com/jax-releases/jax_cuda_releases.html
 RUN pip install blackjax
 RUN pip install pymc
-RUN pip install pymanopt geomstats 
+RUN pip install pymanopt geomstats autograd
 RUN pip install torch torchvision torchaudio
 
 USER root
