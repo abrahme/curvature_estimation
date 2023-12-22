@@ -6,32 +6,33 @@ import numpy as np
 from typing import List
 from .hsgp import HSGPExpQuadWithDerivative
 
-def vector_to_lower_triangular(vector: np.ndarray, dim_size: int):
-    """ converts a vector to a lower triangular matrix
+# def vector_to_lower_triangular(vector: np.ndarray, dim_size: int):
+#     """ converts a vector to a lower triangular matrix
 
-    Args:
-        vector (np.ndarray): _description_
-        dim_size (int): _description_
+#     Args:
+#         vector (np.ndarray): _description_
+#         dim_size (int): _description_
 
-    Returns:
-        _type_: _description_
-    """
-    array = np.zeros((dim_size, dim_size))
-    indices = np.tril_indices(n = dim_size, m = dim_size, k = 0)
-    array[indices] = vector
-    return array
+#     Returns:
+#         _type_: _description_
+#     """
+#     array = np.zeros((dim_size, dim_size))
+#     indices = np.tril_indices(n = dim_size, m = dim_size, k = 0)
+#     array[indices] = vector
+#     return array
 
-def make_diagonal_positive(array):
-    n = array.shape[0]
-    array[np.diag_indices(n)] = np.exp(.5*np.diagonal(array))
-    return array
+# def make_diagonal_positive(array):
+#     n = array.shape[0]
+#     array[np.diag_indices(n)] = np.exp(.5*np.diagonal(array))
+#     return array
 
-def compute_partial_derivatives(chol_value_array, partial_deriv_array, partial_dim: int = 0):
-    partial_deriv_array_dim = partial_deriv_array[:,:,partial_dim]
-    x = partial_deriv_array_dim[:,0] * np.square(chol_value_array[:,0,0])
-    y = partial_deriv_array_dim[:,1] * chol_value_array[:,1,0] + .5 * chol_value_array[:,1,0] * partial_deriv_array_dim[:,0]*chol_value_array[:,1,0]
-    z = x + 2*y*chol_value_array[:,1,0]*chol_value_array[:,0,0]
-    return np.stack([np.stack([x, y], axis = -1),np.stack([y, z], axis = -1)], axis = -1)
+# def compute_partial_derivatives(chol_value_array, partial_deriv_array, partial_dim: int = 0):
+#     partial_deriv_array_dim = partial_deriv_array[:,:,partial_dim]
+#     x = partial_deriv_array_dim[:,0] * np.square(chol_value_array[:,0,0])
+#     y = partial_deriv_array_dim[:,1] * chol_value_array[:,1,0] + .5 * chol_value_array[:,1,0] * partial_deriv_array_dim[:,0]*chol_value_array[:,1,0]
+#     z = x + 2*y*chol_value_array[:,1,0]*chol_value_array[:,0,0]
+#     return np.stack([np.stack([x, y], axis = -1),np.stack([y, z], axis = -1)], axis = -1)
+
 
 
 class GPRiemannianEuclidean(VectorSpace):
@@ -46,8 +47,9 @@ class GPRiemannianEuclidean(VectorSpace):
         Dimension of the Euclidean space.
     """
 
-    def __init__(self, dim, gps, equip=True):
+    def __init__(self, dim, gps, scale, equip=True):
         self.gps = gps
+        self.scale = scale
         super().__init__(
             dim=dim,
             shape=(dim,),
@@ -59,7 +61,7 @@ class GPRiemannianEuclidean(VectorSpace):
 
         if Metric is None:
             Metric = TwoDimensionalGaussianProcessRiemmanianMetric
-            self.metric = Metric(self, self.gps)
+            self.metric = Metric(self, self.gps, self.scale)
         else:
             self.metric = Metric(self, **metric_kwargs)
         return self
@@ -87,23 +89,26 @@ class TwoDimensionalGaussianProcessRiemmanianMetric(RiemannianMetric):
         by an underlying spatial process
     """
 
-    def __init__(self, space, gaussian_processes: List[HSGPExpQuadWithDerivative], signature=None):
+    def __init__(self, space, gaussian_processes: List[HSGPExpQuadWithDerivative], scale, signature=None):
         super().__init__(space, signature)
         self.gaussian_processes = gaussian_processes
         self.exp_solver = ExpODESolver()
         self.log_solver = LogODESolver()
+        self.scale = scale
     
     def metric_matrix(self, base_point=None):
         ### note that this returns a N x k matrix for k gps
         gp_evaluation = np.stack([gp.predict(base_point) 
-                         for gp in self.gaussian_processes], axis = 0).T
-        gp_eval_chol = np.stack([make_diagonal_positive(vector_to_lower_triangular(gp_evaluation[i], 2)) for i in range(gp_evaluation.shape[0])], axis = 0)
+                         for gp in self.gaussian_processes], axis = 0).reshape((-1, 2, 2))
+        
+        # gp_eval_chol = np.stack([make_diagonal_positive(vector_to_lower_triangular(gp_evaluation[i], 2)) for i in range(gp_evaluation.shape[0])], axis = 0)
         ### now this returns a N x 2 x 2 tensor 
         
         ### now we have to take the dot product
 
-        gp_eval_g = np.einsum("...jk,...mk -> ...jm" , gp_eval_chol, gp_eval_chol)
-        
+        # gp_eval_g = np.einsum("...jk,...mk -> ...jm" , gp_eval_chol, gp_eval_chol)
+        gp_eval_g = np.einsum("...jk,...mk -> ...jm" , gp_evaluation, gp_evaluation)
+        gp_eval_g += np.eye(2) * self.scale
         return gp_eval_g
         
     def inner_product_derivative_matrix(self, base_point=None):
@@ -129,17 +134,28 @@ class TwoDimensionalGaussianProcessRiemmanianMetric(RiemannianMetric):
             but maybe we have to because we don't wantto hand write derivatives 
         """
         n_dims = 2 ### fixed for 2
+        # gp_derivative_evaluation = np.stack(
+        #     [np.stack([gp.predict(base_point,deriv_dim = i) for gp in self.gaussian_processes],
+        #               axis = 0).T for i in range(n_dims)], 
+        #               axis = -1) ### N x 3 x 2 tensor
+
         gp_derivative_evaluation = np.stack(
             [np.stack([gp.predict(base_point,deriv_dim = i) for gp in self.gaussian_processes],
                       axis = 0).T for i in range(n_dims)], 
-                      axis = -1) ### N x 3 x 2 tensor
+                      axis = -1).reshape((-1, n_dims,n_dims,n_dims)) ### N x 2 x 2 x 2 tensor
+        # gp_evaluation = np.stack([gp.predict(base_point) 
+        #                  for gp in self.gaussian_processes], axis = 0).T  ### N x 3
+
         gp_evaluation = np.stack([gp.predict(base_point) 
-                         for gp in self.gaussian_processes], axis = 0).T  ### N x 3
-        gp_eval_chol = np.stack([make_diagonal_positive(vector_to_lower_triangular(gp_evaluation[i], 2)) for i in range(gp_evaluation.shape[0])], axis = 0)
+                         for gp in self.gaussian_processes], axis = 0).reshape((-1, n_dims, n_dims))  ### N x 3
+        
+        # gp_eval_chol = np.stack([make_diagonal_positive(vector_to_lower_triangular(gp_evaluation[i], 2)) for i in range(gp_evaluation.shape[0])], axis = 0)
         ### N x 2 x 2
 
         ### some chain rule 
-        partials = np.stack([compute_partial_derivatives(gp_eval_chol, gp_derivative_evaluation, i) for i in range(n_dims)], axis = -1)
+        # partials = np.stack([compute_partial_derivatives(gp_eval_chol, gp_derivative_evaluation, i) for i in range(n_dims)], axis = -1)
+
+        partials = np.einsum("...ij, ...ljk -> ...ilk", gp_evaluation, gp_derivative_evaluation) + np.einsum("...ijk, ...lj -> ...ilk", gp_derivative_evaluation, gp_evaluation)
         return partials
 
     def cometric_matrix(self, base_point=None):

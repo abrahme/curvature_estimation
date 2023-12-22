@@ -9,6 +9,7 @@ from models.manifold import GPRiemannianEuclidean
 if __name__ == "__main__":
     basis_x, basis_y = np.meshgrid(np.arange(-1,1, .01), np.arange(-1,1, .01))
     basis = np.stack((basis_x.ravel(), basis_y.ravel()), axis = 1)
+    print(basis.shape)
 
     trajectories, start_points = create_geodesic_pairs_circle(50, 20)
     initial_conditions_velo = np.stack([np.gradient(trajectory, 1/trajectory.shape[0], axis=0, edge_order=2)[0,:] 
@@ -18,27 +19,29 @@ if __name__ == "__main__":
     ### initialize gp
     m = [15,15]
     c = 4.0
-    ls = np.array([.5,.5])
+    ls = np.array([1,1])
     active_dims = [0,1]
-    gps = [HSGPExpQuadWithDerivative(m=m,active_dims=active_dims,c = c ) for _ in range(3)]
+    gps = [HSGPExpQuadWithDerivative(m=m,active_dims=active_dims,c = c ) for _ in range(4)]
     for gp in gps:
         gp.prior_linearized(basis)
         gp.ls = ls.copy()
 
     ### 
+    scale = 3
     traj_flattened = np.vstack(trajectories)
     plt.scatter(traj_flattened[:,0], traj_flattened[:,1])
     plt.title("Data")
     plt.show()
     plt.savefig("sample_circle_data.png")
     
-    result = minimize_function_mcmc(gps, trajectories, initial_conditions, loss = "l2")
+    result = minimize_function_mcmc(gps, trajectories, initial_conditions, scale, loss = "l2", burn_in_samples=1000, num_samples=1000)
     fitted_beta = np.mean(result, axis = 0) ### get posterior mea
     # fitted_beta = np.reshape(result, (3,-1))
     for i, gp in enumerate(gps):
         gp._beta = fitted_beta[i,:]
-    riemannian_metric_space = GPRiemannianEuclidean(2,gps,equip=True)
+    riemannian_metric_space = GPRiemannianEuclidean(2,gps,scale,equip=True)
 
+    
     metric_tensor = riemannian_metric_space.metric.metric_matrix(basis)
     christoffels = riemannian_metric_space.metric.christoffels(basis)
 
