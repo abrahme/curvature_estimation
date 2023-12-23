@@ -94,10 +94,12 @@ class HSGPExpQuadWithDerivative(object):
         eigvals = calc_eigenvalues(self.L, self._m)
         omega = np.sqrt(eigvals)
         psd = self.power_spectral_density(omega)
-        
         self._sqrt_psd = np.sqrt(psd[i:])
-        
         self._eigvals = eigvals
+
+    def power_spectral_density_deriv(self, omega, deriv_dim):
+        ls = np.ones(self.n_dims) * self.ls
+        return self.power_spectral_density(omega) * np.prod(ls) * np.square(omega[:,deriv_dim])
 
     def power_spectral_density(self, omega):
         r"""
@@ -117,13 +119,15 @@ class HSGPExpQuadWithDerivative(object):
     
     def predict(self, Xnew, deriv_dim : int | None = None):
         Xnew, _ = self._slice(Xnew - self._X_mean)
-        
         if deriv_dim is None:
             phi = calc_eigenvectors(Xnew, self.L, self._eigvals, self._m)
+            prediction = phi[:,0:] @ (self._beta * self._sqrt_psd)
+            return prediction
         else:
-            phi = calc_eigenvectors_deriv(Xnew, self.L, self._eigvals, self._m, deriv_dim)
+            phi_deriv = calc_eigenvectors_deriv(Xnew, self.L, self._eigvals, self._m, deriv_dim)
+            prediction = phi_deriv[:,0:] @ (self._beta * self._sqrt_psd)
+            return prediction
         
-        return phi[:,0:] @ (self._beta * self._sqrt_psd)
 
 
     
