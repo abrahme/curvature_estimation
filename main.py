@@ -10,22 +10,9 @@ from geomstats.geometry.hypersphere import Hypersphere
 if __name__ == "__main__":
     basis_x, basis_y = np.meshgrid(np.arange(-1,1, .01), np.arange(-1,1, .01))
     basis = np.stack((basis_x.ravel(), basis_y.ravel()), axis = 1)
-    # print(basis.shape)
 
-    trajectories, start_points, start_velo = create_geodesic_pairs_circle(100, 20)
-    # initial_conditions_velo = np.stack([np.gradient(trajectory, 1/trajectory.shape[0], axis=0, edge_order=2)[0,:] 
-    #                       for trajectory in trajectories], axis = 0)
+    trajectories, start_points, start_velo = create_geodesic_pairs_circle(20, 20)
     initial_conditions = np.hstack([start_points, start_velo])
-
-    # traj_flattened = np.vstack(trajectories)
-    # # predicted_flattened = np.vstack(predicted_trajectories(np.linspace(0,1,20)))
-    # plt.scatter(traj_flattened[:,0], traj_flattened[:,1], c = "blue")
-    # # plt.scatter(predicted_flattened[:,0], predicted_flattened[:,1], c = "red")
-    # plt.title("Data ")
-    # plt.savefig("sample_circle_data.png")
-    # plt.show()
-
-    ## initialize gp
     m = [5,5]
     c = 4.0
     ls = np.array([.25,.25])
@@ -35,16 +22,16 @@ if __name__ == "__main__":
         gp.prior_linearized(basis)
         gp.ls = ls.copy()
 
-    ### 
     scale = 1
    
     
     
+    # result = minimize_function_mcmc(gps, trajectories, initial_conditions, scale, loss = "hausdorff", burn_in_samples=200, num_samples=500)
     result = minimize_function(gps, trajectories, initial_conditions, scale, loss = "l2")
     # fitted_beta = np.mean(result, axis = 0) ### get posterior mea
     fitted_beta = np.reshape(result, (3,-1))
     # for i, gp in enumerate(gps):
-    #     print(gp._beta)
+    #     gp._beta = fitted_beta[i,:]
     riemannian_metric_space = GPRiemannianEuclidean(2,gps,scale,equip=True)
 
     
@@ -62,7 +49,8 @@ if __name__ == "__main__":
     plt.clf()
     
     space = Hypersphere(dim = 1)
-    basis_on_manifold = basis[space.belongs(basis)]
+    theta = np.linspace(0, np.pi * 2, 1000)
+    basis_on_manifold = np.vstack([np.cos(theta), np.sin(theta)]).T
     metric_tensor = riemannian_metric_space.metric.metric_matrix(basis_on_manifold)
     christoffels = riemannian_metric_space.metric.christoffels(basis_on_manifold)
     for i in range(2):
@@ -86,7 +74,20 @@ if __name__ == "__main__":
                 plt.savefig(f"christoffel_symbol_{i}_{j}_{k}.png") 
                 # plt.show()
                 plt.clf()
-                
+    
+
+    # Plot the straight line with a different color
+    plt.scatter(basis_on_manifold[:,0], basis_on_manifold[:,1], c = metric_tensor[:,0,0]*np.square(basis_on_manifold[:,0]) + 
+              metric_tensor[:,1,1]*np.square(basis_on_manifold[:,1]) - 2*metric_tensor[:,0,1]*basis_on_manifold[:,0]*basis_on_manifold[:,1], label='metric value')
+
+    # Customize the plot
+    plt.xlabel('x')
+    plt.ylabel('y')
+    plt.axis('equal')
+    plt.colorbar(label='Estimated Metric Value')
+    plt.title('Circle: $x^2 + y^2 = 1$')
+    plt.legend()
+    plt.show()
 
 
 
