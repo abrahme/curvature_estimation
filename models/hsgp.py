@@ -70,7 +70,6 @@ class HSGPExpQuadWithDerivative(object):
         self._m_star = int(np.prod(m))
         self._beta = np.random.randn(self._m_star,)
         self.ls = np.random.random(size = self.n_dims)
-
     
     def _slice(self, X, Xs=None):
         X = X[:, self.active_dims]
@@ -127,6 +126,8 @@ class HSGPExpQuadWithDerivative(object):
             phi_deriv = calc_eigenvectors_deriv(Xnew, self.L, self._eigvals, self._m, deriv_dim)
             prediction = phi_deriv[:,0:] @ (self._beta * self._sqrt_psd)
             return prediction
+    
+
         
 
 

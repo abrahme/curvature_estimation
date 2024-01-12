@@ -6,12 +6,12 @@ from models.hsgp import HSGPExpQuadWithDerivative
 from models.manifold import GPRiemannianEuclidean
 from geomstats.geometry.hypersphere import Hypersphere
 
-
 if __name__ == "__main__":
     basis_x, basis_y = np.meshgrid(np.arange(-1,1, .01), np.arange(-1,1, .01))
     basis = np.stack((basis_x.ravel(), basis_y.ravel()), axis = 1)
-
-    trajectories, start_points, start_velo = create_geodesic_pairs_circle(20, 20)
+    theta = np.linspace(0, np.pi * 2, 1000)
+    basis_on_manifold = np.vstack([np.cos(theta), np.sin(theta)]).T
+    trajectories, start_points, start_velo = create_geodesic_pairs_circle(40, 20, noise=.1)
     initial_conditions = np.hstack([start_points, start_velo])
     m = [5,5]
     c = 4.0
@@ -22,17 +22,16 @@ if __name__ == "__main__":
         gp.prior_linearized(basis)
         gp.ls = ls.copy()
 
-    scale = 1
    
     
     
     # result = minimize_function_mcmc(gps, trajectories, initial_conditions, scale, loss = "hausdorff", burn_in_samples=200, num_samples=500)
-    result = minimize_function(gps, trajectories, initial_conditions, scale, loss = "l2")
+    result = minimize_function(gps, trajectories, initial_conditions, basis_on_manifold, loss = "l2")
     # fitted_beta = np.mean(result, axis = 0) ### get posterior mea
     fitted_beta = np.reshape(result, (3,-1))
     # for i, gp in enumerate(gps):
     #     gp._beta = fitted_beta[i,:]
-    riemannian_metric_space = GPRiemannianEuclidean(2,gps,scale,equip=True)
+    riemannian_metric_space = GPRiemannianEuclidean(2,gps,equip=True)
 
     
     
@@ -49,8 +48,7 @@ if __name__ == "__main__":
     plt.clf()
     
     space = Hypersphere(dim = 1)
-    theta = np.linspace(0, np.pi * 2, 1000)
-    basis_on_manifold = np.vstack([np.cos(theta), np.sin(theta)]).T
+    
     metric_tensor = riemannian_metric_space.metric.metric_matrix(basis_on_manifold)
     christoffels = riemannian_metric_space.metric.christoffels(basis_on_manifold)
     for i in range(2):
@@ -87,6 +85,7 @@ if __name__ == "__main__":
     plt.colorbar(label='Estimated Metric Value')
     plt.title('Circle: $x^2 + y^2 = 1$')
     plt.legend()
+    plt.savefig("EstimatedMetricValue.png")
     plt.show()
 
 

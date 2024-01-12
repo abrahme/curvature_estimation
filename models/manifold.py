@@ -1,12 +1,11 @@
-import geomstats as gm 
+import numpy as np
 from geomstats.geometry.riemannian_metric import RiemannianMetric
 from geomstats.geometry.base import VectorSpace
 from geomstats.numerics.geodesic import ExpODESolver, LogODESolver
-import numpy as np
 from typing import List
 from .hsgp import HSGPExpQuadWithDerivative
 
-def vector_to_lower_triangular(vector: np.ndarray, dim_size: int):
+def vector_to_lower_triangular(vector, dim_size: int):
     """ converts a vector to a lower triangular matrix
 
     Args:
@@ -47,9 +46,8 @@ class GPRiemannianEuclidean(VectorSpace):
         Dimension of the Euclidean space.
     """
 
-    def __init__(self, dim, gps, scale, equip=True):
+    def __init__(self, dim, gps, equip=True):
         self.gps = gps
-        self.scale = scale
         super().__init__(
             dim=dim,
             shape=(dim,),
@@ -61,7 +59,7 @@ class GPRiemannianEuclidean(VectorSpace):
 
         if Metric is None:
             Metric = TwoDimensionalGaussianProcessRiemmanianMetric
-            self.metric = Metric(self, self.gps, self.scale)
+            self.metric = Metric(self, self.gps)
         else:
             self.metric = Metric(self, **metric_kwargs)
         return self
@@ -89,7 +87,7 @@ class TwoDimensionalGaussianProcessRiemmanianMetric(RiemannianMetric):
         by an underlying spatial process
     """
 
-    def __init__(self, space, gaussian_processes: List[HSGPExpQuadWithDerivative], scale, signature=None):
+    def __init__(self, space, gaussian_processes: List[HSGPExpQuadWithDerivative], signature=None):
         super().__init__(space, signature)
         self.gaussian_processes = gaussian_processes
         self.exp_solver = ExpODESolver()
