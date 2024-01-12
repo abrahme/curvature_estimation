@@ -28,7 +28,7 @@ if __name__ == "__main__":
     
     
     # result = minimize_function_mcmc(gps, trajectories, initial_conditions, scale, loss = "hausdorff", burn_in_samples=200, num_samples=500)
-    result = minimize_function(gps, trajectories, initial_conditions, basis_on_manifold, loss = "l2")
+    result = minimize_function(gps, trajectories, initial_conditions, basis_on_manifold, n_dims, loss = "l2")
     # fitted_beta = np.mean(result, axis = 0) ### get posterior mea
     fitted_beta = np.reshape(result, (n_gps,-1))
     # for i, gp in enumerate(gps):
