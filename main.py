@@ -17,7 +17,9 @@ if __name__ == "__main__":
     c = 4.0
     ls = np.array([.25,.25])
     active_dims = [0,1]
-    gps = [HSGPExpQuadWithDerivative(m=m,active_dims=active_dims,c = c ) for _ in range(3)]
+    n_dims = len(active_dims)
+    n_gps = int(n_dims*(n_dims + 1)/2)
+    gps = [HSGPExpQuadWithDerivative(m=m,active_dims=active_dims,c = c ) for _ in range(n_gps)]
     for gp in gps:
         gp.prior_linearized(basis)
         gp.ls = ls.copy()
@@ -26,18 +28,18 @@ if __name__ == "__main__":
     
     
     # result = minimize_function_mcmc(gps, trajectories, initial_conditions, scale, loss = "hausdorff", burn_in_samples=200, num_samples=500)
-    result = minimize_function(gps, trajectories, initial_conditions, basis_on_manifold, loss = "l2")
+    result = minimize_function(gps, trajectories, initial_conditions, basis_on_manifold, n_dims, loss = "l2")
     # fitted_beta = np.mean(result, axis = 0) ### get posterior mea
-    fitted_beta = np.reshape(result, (3,-1))
+    fitted_beta = np.reshape(result, (n_gps,-1))
     # for i, gp in enumerate(gps):
     #     gp._beta = fitted_beta[i,:]
-    riemannian_metric_space = GPRiemannianEuclidean(2,gps,equip=True)
+    riemannian_metric_space = GPRiemannianEuclidean(n_dims,gps,equip=True)
 
     
     
 
-    predicted_trajectories = riemannian_metric_space.metric.geodesic(initial_point = initial_conditions[:,0:2],
-                                                                            initial_tangent_vec=initial_conditions[:,2:4])
+    predicted_trajectories = riemannian_metric_space.metric.geodesic(initial_point = initial_conditions[:,0:n_dims],
+                                                                            initial_tangent_vec=initial_conditions[:,n_dims:2*n_dims])
     
     traj_flattened = np.vstack(trajectories)
     predicted_flattened = np.vstack(predicted_trajectories(np.linspace(0,1,20)))
@@ -47,7 +49,7 @@ if __name__ == "__main__":
     plt.savefig("sample_circle_data_vs_predicted.png")
     plt.clf()
     
-    space = Hypersphere(dim = 1)
+    space = Hypersphere(dim = n_dims - 1)
     
     metric_tensor = riemannian_metric_space.metric.metric_matrix(basis_on_manifold)
     christoffels = riemannian_metric_space.metric.christoffels(basis_on_manifold)
