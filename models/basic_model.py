@@ -11,6 +11,12 @@ def symmetric_prior_loss(manifold_basis, metric_space: GPRiemannianEuclidean):
     val = metric_matrix[:,0,0] * np.square(manifold_basis[:,0]) + metric_matrix[:,1,1] * np.square(manifold_basis[:,1]) - 2*metric_matrix[:,0,1]*np.prod(manifold_basis, axis = 1)
     return np.mean(np.square(val - 1))
 
+def lie_derivative_circle_loss(manifold_basis, metric_space: GPRiemannianEuclidean):
+    #### only works if dimension is 2
+    christoffels = metric_space.metric.christoffels(manifold_basis)
+
+    return np.square(manifold_basis[:,0]*(christoffels[:,1,:,:].sum(axis=(-1,-2))) - manifold_basis[:,1]*(christoffels[:,0,:,:].sum(axis=(-1,-2)))).sum()
+
 def optim_func_loss(theta, input_trajectories, initial_conditions, manifold_basis, gps: list[HSGPExpQuadWithDerivative]):
     
     beta = np.reshape(theta, (len(gps), -1))
@@ -41,7 +47,7 @@ def optim_func_loss_l2(theta, input_trajectories, initial_conditions, manifold_b
     t = np.linspace(0,1,input_trajectories.shape[1])
     predicted_vals = predicted_vals_geodesics(t)
     average_manifold_distance = np.sum(np.square(input_trajectories[:,:,0:n_dims] - predicted_vals[:,:,0:n_dims]), axis = 1).sum()
-    prior_loss =  symmetric_prior_loss(manifold_basis, riemannian_metric_space)
+    prior_loss =  lie_derivative_circle_loss(manifold_basis, riemannian_metric_space)
     print(f"Manifold L2 loss: {average_manifold_distance}", f"parameter loss: {beta_loss.sum()}", f"prior loss: {prior_loss}")
     return average_manifold_distance  + beta_loss + prior_loss
 
@@ -63,7 +69,7 @@ def optim_func_loss_l2_full(theta, input_trajectories, initial_conditions, manif
                                axis = 0)
     average_manifold_distance = np.sum(np.square(input_trajectories[:,:,0:n_dims] - predicted_vals[:,:,0:n_dims]) + 
                                         np.square(actual_velocity[:,:,0:n_dims] - predicted_velocity[:,:,0:n_dims]), axis = 1).sum()
-    prior_loss =  symmetric_prior_loss(manifold_basis, riemannian_metric_space)
+    prior_loss =  lie_derivative_circle_loss(manifold_basis, riemannian_metric_space)
     print(f"Manifold L2 Full loss: {average_manifold_distance}", f"parameter loss: {beta_loss.sum()}", f"prior loss: {prior_loss}")
     return average_manifold_distance  + beta_loss.sum() + prior_loss
 
@@ -86,7 +92,7 @@ def optim_func_loss_hausdorff(theta, input_trajectories, initial_conditions, man
     average_manifold_distance = max(directed_hausdorff(flattened_predicted_vals, flattened_trajectories)[0],
                                     directed_hausdorff(flattened_trajectories, flattened_predicted_vals)[0])
     
-    prior_loss =  symmetric_prior_loss(manifold_basis, riemannian_metric_space)
+    prior_loss =  lie_derivative_circle_loss(manifold_basis, riemannian_metric_space)
     print(f"Manifold Hausdorff loss: {average_manifold_distance}", f"parameter loss: {beta_loss.sum()}", f"prior loss : {prior_loss}")
     return average_manifold_distance  + beta_loss.sum() + prior_loss
 

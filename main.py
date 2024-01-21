@@ -53,8 +53,8 @@ if __name__ == "__main__":
     
     metric_tensor = riemannian_metric_space.metric.metric_matrix(basis_on_manifold)
     christoffels = riemannian_metric_space.metric.christoffels(basis_on_manifold)
-    for i in range(2):
-        for j in range(2):
+    for i in range(n_dims):
+        for j in range(n_dims):
             title = f"Metric Tensor Component {i},{j}"
             plt.scatter(basis_on_manifold[:,0], basis_on_manifold[:,1], c = metric_tensor[:,i,j])
             plt.title(title)
@@ -64,9 +64,9 @@ if __name__ == "__main__":
             plt.clf()
             
 
-    for i in range(2):
-        for j in range(2):
-            for k in range(2):
+    for i in range(n_dims):
+        for j in range(n_dims):
+            for k in range(n_dims):
                 title = f"Christoffel Symbol {i},{j}, {k}"
                 plt.scatter(basis_on_manifold[:,0], basis_on_manifold[:,1], c = christoffels[:,i,j,k])
                 plt.title(title)
