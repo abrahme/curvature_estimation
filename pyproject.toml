@@ -24,6 +24,7 @@ jaxlib = "^0.4.22"
 blackjax = "^1.0.0"
 numpyro = "^0.13.2"
 autograd = "^1.6.2"
+torchdiffeq = "^0.2.3"
 
 
 [build-system]

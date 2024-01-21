@@ -2605,6 +2605,22 @@ dynamo = ["jinja2"]
 opt-einsum = ["opt-einsum (>=3.3)"]
 
 [[package]]
+name = "torchdiffeq"
+version = "0.2.3"
+description = "ODE solvers and adjoint sensitivity analysis in PyTorch."
+category = "main"
+optional = false
+python-versions = "~=3.6"
+files = [
+    {file = "torchdiffeq-0.2.3-py3-none-any.whl", hash = "sha256:b5b01ec1294a2d8d5f77e567bf17c5de1237c0573cb94deefa88326f0e18c338"},
+    {file = "torchdiffeq-0.2.3.tar.gz", hash = "sha256:fe75f434b9090ac0c27702e02bed21472b0f87035be6581f51edc5d4013ea31a"},
+]
+
+[package.dependencies]
+scipy = ">=1.4.0"
+torch = ">=1.3.0"
+
+[[package]]
 name = "tornado"
 version = "6.3.3"
 description = "Tornado is a Python web framework and asynchronous networking library, originally developed at FriendFeed."
@@ -2774,4 +2790,4 @@ test = ["hypothesis", "packaging", "pytest", "pytest-cov"]
 [metadata]
 lock-version = "2.0"
 python-versions = "3.11.0"
-content-hash = "485501312244d6d604cf726b53738b9b2eb10ea4376e25f281addaf032f28679"
+content-hash = "3e4acf02dfa4995d4aaaf494735cbc292cea08481bce476fd2ab3420a4b64a46"
