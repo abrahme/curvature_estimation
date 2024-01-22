@@ -1,5 +1,5 @@
 import numpy as np
-import geomstats as gm
+import geomstats._backend as gs
 from geomstats.geometry.hypersphere import Hypersphere
 
 
@@ -26,7 +26,7 @@ def create_geodesic_pairs_circle(N,time_steps, noise = 0):
 
 
     geodesic = space.metric.geodesic(initial_point=start_points, initial_tangent_vec = start_tangent_vecs)
-    geodesic_trajectories = np.expand_dims(geodesic(t),0) if N == 1 else geodesic(t)
+    geodesic_trajectories = gs.expand_dims(geodesic(t),0) if N == 1 else geodesic(t)
     geodesic_trajectories += np.random.randn(*geodesic_trajectories.shape) * noise
     
     return geodesic_trajectories, start_points, start_tangent_vecs
