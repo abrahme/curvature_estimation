@@ -15,14 +15,14 @@ def vector_to_lower_triangular(vector, dim_size: int):
     Returns:
         _type_: _description_
     """
-    array = torch.zeros(dim_size, dim_size).to(torch.float64)
+    array = torch.zeros(dim_size, dim_size)
     indices = torch.tril_indices(row = dim_size, col = dim_size, offset = 0)
     array[indices.tolist()] = vector
     return array
 
 def make_diagonal_positive(array):
     v = torch.exp(.5*torch.diagonal(array))
-    mask = torch.diag(torch.ones_like(v)).to(torch.float64)
+    mask = torch.diag(torch.ones_like(v))
     return mask*torch.diag(v) + (1-mask)*array
 
 
@@ -86,11 +86,11 @@ class GaussianProcessRiemmanianMetric(RiemannianMetric):
         
 
     def _make_chol(self,array):
-        return torch.stack([make_diagonal_positive(vector_to_lower_triangular(array[i,:], self.dimension)) for i in range(array.shape[0])], axis = 0).to(torch.float64)
+        return torch.stack([make_diagonal_positive(vector_to_lower_triangular(array[i,:], self.dimension)) for i in range(array.shape[0])], axis = 0)
     
     def _construct_gp_evaluation(self, base_point):
         return torch.stack([gp.predict(base_point) 
-                         for gp in self.gaussian_processes], axis = 0).T.to(torch.float64)
+                         for gp in self.gaussian_processes], axis = 0).T
     
     def metric_matrix(self, base_point=None):
         ### note that this returns a N x k matrix for k gps
@@ -153,8 +153,7 @@ class GaussianProcessRiemmanianMetric(RiemannianMetric):
             gp_derivative_evaluation_lower_tri[:,*np.diag_indices(n_dims),dim] = partial_diagonals[:,:,dim]
 
         partials = torch.einsum("nij, nljk -> nilk", gp_eval_chol, gp_derivative_evaluation_lower_tri) + torch.einsum("nijk, nlj -> nilk", gp_derivative_evaluation_lower_tri, gp_eval_chol)
-
-        return partials.to(torch.float64)
+        return partials
 
     def cometric_matrix(self, base_point=None):
         
@@ -163,8 +162,8 @@ class GaussianProcessRiemmanianMetric(RiemannianMetric):
         batch_size = gp_evaluation.shape[0]
         n_dims = self.dimension
         B = torch.eye(n_dims).unsqueeze(0).expand(batch_size, -1, -1)
-        chol_inv = torch.linalg.solve_triangular(gp_eval_chol, B, upper = False).to(torch.float64)
-        return torch.einsum("njl,nij -> nli", chol_inv, chol_inv).to(torch.float64)
+        chol_inv = torch.linalg.solve_triangular(gp_eval_chol, B, upper = False)
+        return torch.einsum("njl,nij -> nli", chol_inv, chol_inv)
 
 
 

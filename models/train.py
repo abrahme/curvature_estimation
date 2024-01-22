@@ -12,17 +12,20 @@ def train(input_trajectories, initial_conditions: Tuple[torch.Tensor, torch.Tens
     optimizer = optim.Adam(param_list, lr=0.01)
 
 
-    for _ in range(epochs):
-        print(f"Epoch: {_}")
+    for epoch in range(epochs):
+        
         optimizer.zero_grad()
         # Forward pass
         predicted_trajectories, _ = model.forward(initial_conditions)
-        loss = model.loss(torch.permute(predicted_trajectories.to(torch.float64), (1,0,2)), input_trajectories.to(torch.float64))
-
+        loss = model.loss(torch.permute(predicted_trajectories.float(), (1,0,2)), input_trajectories.float())
         # Backward pass and optimization
         
-        loss.backward()
+        loss.backward(retain_graph=True)
         optimizer.step()
+
+        print(f"Epoch: {epoch + 1}, Loss: {loss.item()}")
+
+
 
     return model
 
