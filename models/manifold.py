@@ -2,7 +2,7 @@ import numpy as np
 import torch
 from geomstats.geometry.riemannian_metric import RiemannianMetric
 from geomstats.geometry.base import VectorSpace
-from geomstats.numerics.geodesic import ExpODESolver, LogODESolver
+from .ode import TorchExpODESolver
 from typing import List
 from .hsgp import HSGPExpQuadWithDerivative
 

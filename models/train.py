@@ -8,7 +8,7 @@ def train(input_trajectories, initial_conditions, epochs, regularizer:float, n, 
     optimizer = optim.SGD(model.parameters(), lr=0.01)
 
 
-    for epoch in range(epochs):
+    for _ in range(epochs):
         # Forward pass
         predicted_trajectories = model.forward(initial_conditions)
         loss = model.loss(predicted_trajectories, input_trajectories)
@@ -17,9 +17,6 @@ def train(input_trajectories, initial_conditions, epochs, regularizer:float, n, 
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
-
-        if (epoch+1) % 100 == 0:
-            print(f'Epoch [{epoch+1}/{epochs}], Loss: {loss.item():.4f}')
 
     return model
 

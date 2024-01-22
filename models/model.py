@@ -1,9 +1,39 @@
 import torch
+from torchdiffeq import odeint_adjoint as odeint
 from typing import List
 import torch.nn as nn
 from .hsgp import HSGPExpQuadWithDerivative
 from .manifold import GPRiemannianEuclidean
 
+
+
+class _ODEFunc(nn.Module):
+    def __init__(self, module: GPRiemannianEuclidean):
+        super().__init__()
+        self.module = module
+
+    def forward(self, x, t):
+
+        return self.module.metric.geodesic_equation(x, t)
+
+
+class ODEBlock(nn.Module):
+    def __init__(self, odefunc: nn.Module, solver: str = 'dopri5',
+                 rtol: float = 1e-4, atol: float = 1e-4):
+        super().__init__()
+        self.odefunc = _ODEFunc(odefunc)
+        self.rtol = rtol
+        self.atol = atol
+        self.solver = solver
+
+ 
+
+    def forward(self, X: torch.Tensor, integration_time):
+     
+        out = odeint(
+            self.odefunc, X, integration_time, rtol=self.rtol,
+            atol=self.atol, method=self.solver)
+        return out
 
 class RiemannianAutoencoder(nn.Module):
 
@@ -15,6 +45,7 @@ class RiemannianAutoencoder(nn.Module):
         for gp_component in self.gp_components:
             gp_component.prior_linearized(basis) ### initialize basis
         self.metric_space = GPRiemannianEuclidean(n, self.gp_components)
+        self.ode_layer = ODEBlock(_ODEFunc(GPRiemannianEuclidean))
         self.n = n ### dimension of manifold
         self.d = d ### number of free functions
         self.t = t ### timepoints to extend
@@ -23,10 +54,8 @@ class RiemannianAutoencoder(nn.Module):
 
     def forward(self,initial_conditions):
 
-        predicted_vals_geodesics = self.metric_space.metric.geodesic(initial_point = initial_conditions[:,0:self.n],
-                                                                            initial_tangent_vec=initial_conditions[:,self.n:2*self.n])
         time_steps = torch.arange(0,1,self.t)
-        predicted_vals = predicted_vals_geodesics(time_steps)
+        predicted_vals = self.ode_layer.forward(initial_conditions, time_steps)
         return predicted_vals
     
     def loss(self, predicted_vals, actual_vals):
