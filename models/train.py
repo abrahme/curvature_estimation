@@ -1,20 +1,26 @@
-from typing import List
+from typing import List, Tuple
+import torch
 import torch.optim as optim
 from .model import RiemannianAutoencoder
 
 
-def train(input_trajectories, initial_conditions, epochs, regularizer:float, n, t, m:List[int], c:List[float], basis):
-    model = RiemannianAutoencoder(n,t,m,c,regularizer, basis)
-    optimizer = optim.SGD(model.parameters(), lr=0.01)
+def train(input_trajectories, initial_conditions: Tuple[torch.Tensor, torch.Tensor], epochs, regularizer:float, n, t, m:List[int], c:float, basis, active_dims: List):
+    model = RiemannianAutoencoder(n,t,m,c,regularizer, basis, active_dims)
+    param_list = []
+    for gp in model.gp_components:
+        param_list += list(gp.parameters())
+    optimizer = optim.Adam(param_list, lr=0.01)
 
 
     for _ in range(epochs):
+        print(f"Epoch: {_}")
+        optimizer.zero_grad()
         # Forward pass
-        predicted_trajectories = model.forward(initial_conditions)
-        loss = model.loss(predicted_trajectories, input_trajectories)
+        predicted_trajectories, _ = model.forward(initial_conditions)
+        loss = model.loss(torch.permute(predicted_trajectories.to(torch.float64), (1,0,2)), input_trajectories.to(torch.float64))
 
         # Backward pass and optimization
-        optimizer.zero_grad()
+        
         loss.backward()
         optimizer.step()
 
