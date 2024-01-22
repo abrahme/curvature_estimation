@@ -9,7 +9,7 @@ def train(input_trajectories, initial_conditions: Tuple[torch.Tensor, torch.Tens
     param_list = []
     for gp in model.gp_components:
         param_list += list(gp.parameters())
-    optimizer = optim.Adam(param_list, lr=0.01)
+    optimizer = optim.Adam(param_list, lr=0.001)
 
 
     for epoch in range(epochs):
