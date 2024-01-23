@@ -6,7 +6,7 @@ import torch
 from scipy.stats import kde
 
 
-def visualize_convergence(pred_trajectories: np.ndarray, actual_trajectories: np.ndarray, n:int, epoch_num: int, penalty: float):
+def visualize_convergence(pred_trajectories: np.ndarray, actual_trajectories: np.ndarray, n:int, epoch_num: int, penalty: float, val: bool):
     nbins=300
 
     k = kde.gaussian_kde(actual_trajectories.T)
@@ -20,7 +20,7 @@ def visualize_convergence(pred_trajectories: np.ndarray, actual_trajectories: np
     plt.ylabel('Y-axis')
     # plt.title(f'Density of Convergence of Trajectory Data')
     plt.legend()
-    plt.savefig(f"data/plots/epoch_{epoch_num}_convergence_data_{n}{'_prior' if penalty > 0 else ''}.png")
+    plt.savefig(f"data/plots/epoch_{epoch_num}_convergence_data_{n}{'_prior' if penalty > 0 else ''}{'_val' if val else ''}.png")
     plt.clf()
 
 

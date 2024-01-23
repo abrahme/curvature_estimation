@@ -58,14 +58,12 @@ class RiemannianAutoencoder(nn.Module):
     
     def loss(self, predicted_vals, actual_vals, val = False):
 
-        reconstruction_loss =  torch.square(predicted_vals - actual_vals).sum()
-        
- 
-        reconstruction_loss
+        reconstruction_loss =  torch.sum(torch.square(predicted_vals - actual_vals), (1,2)).mean()
         if not val:
-            reconstruction_loss += self.parameter_loss()
+            reconstruction_loss = reconstruction_loss + self.parameter_loss()
         if self.regularization > 0:
-            reconstruction_loss += self.prior_loss()
+            if not val:
+                reconstruction_loss = self.prior_loss() + reconstruction_loss
         return reconstruction_loss
     
     def parameter_loss(self):
@@ -80,7 +78,7 @@ class RiemannianAutoencoder(nn.Module):
         #### lie derivative loss with symmetry of circle
         ### TODO generalize to other symmetries 
         christoffels = self.metric_space.metric.christoffels(self.basis)
-        prior_loss = torch.FloatTensor([self.regularization]) * torch.square(self.basis[:,0]*(christoffels[:,1,:,:].sum((-1,-2))) - self.basis[:,1]*(christoffels[:,0,:,:].sum((-1,-2)))).sum()
+        prior_loss = torch.FloatTensor([self.regularization]) * torch.square(self.basis[:,0]*(christoffels[:,1,:,:].sum((-1,-2))) - self.basis[:,1]*(christoffels[:,0,:,:].sum((-1,-2)))).mean()
         return prior_loss
 
 

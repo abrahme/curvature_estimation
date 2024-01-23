@@ -1,18 +1,62 @@
 from typing import List, Tuple
 import torch
+import numpy as np
 import torch.optim as optim
 from .model import RiemannianAutoencoder
+
+
+class EarlyStopping:
+    """Early stops the training if validation loss doesn't improve after a given patience."""
+    def __init__(self, patience=7, verbose=False, delta=0, trace_func=print):
+        """
+        Args:
+            patience (int): How long to wait after last time validation loss improved.
+                            Default: 7
+            verbose (bool): If True, prints a message for each validation loss improvement. 
+                            Default: False
+            delta (float): Minimum change in the monitored quantity to qualify as an improvement.
+                            Default: 0
+            path (str): Path for the checkpoint to be saved to.
+                            Default: 'checkpoint.pt'
+            trace_func (function): trace print function.
+                            Default: print            
+        """
+        self.patience = patience
+        self.verbose = verbose
+        self.counter = 0
+        self.best_score = None
+        self.early_stop = False
+        self.val_loss_min = np.Inf
+        self.delta = delta
+        self.trace_func = trace_func
+    def __call__(self, val_loss):
+
+        score = -val_loss
+
+        if self.best_score is None:
+            self.best_score = score
+        elif score < self.best_score + self.delta:
+            self.counter += 1
+            self.trace_func(f'EarlyStopping counter: {self.counter} out of {self.patience}')
+            if self.counter >= self.patience:
+                self.early_stop = True
+        else:
+            self.best_score = score
+            self.counter = 0
+
 
 
 def train(input_trajectories, initial_conditions: Tuple[torch.Tensor, torch.Tensor], val_input_trajectories, 
           val_initial_conditions:Tuple[torch.Tensor, torch.Tensor],  epochs, 
           regularizer:float, n, t, m:List[int], c:float, basis, active_dims: List, return_preds:bool = False, val: bool = False):
+    
+    early_stopping = EarlyStopping(patience=3, verbose=True)
     model = RiemannianAutoencoder(n,t,m,c,regularizer, basis, active_dims)
     param_list = []
     for gp in model.gp_components:
         param_list += list(gp.parameters())
     optimizer = optim.Adam(param_list, lr=0.01)
-
+    
     preds = []
     for epoch in range(epochs):
         optimizer.zero_grad()
@@ -34,7 +78,12 @@ def train(input_trajectories, initial_conditions: Tuple[torch.Tensor, torch.Tens
             preds.append(torch.permute(predicted_trajectories.detach(), (1,0,2)))
 
         print(f"Epoch: {epoch + 1}, Loss: {loss.item()}, Val Loss: {val_loss.item()}")
-
+        # if val:
+        #     early_stopping(val_loss)
+        
+        #     if early_stopping.early_stop:
+        #         print("Early stopping")
+        #         break
 
 
     return model, preds

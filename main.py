@@ -10,11 +10,11 @@ from visualization.visualize import visualize_circle_metric, visualize_training_
 
 
 
-def plot_convergence(preds: List[np.ndarray], actual: np.ndarray, skip_every: int, n:int, penalty: float):
+def plot_convergence(preds: List[np.ndarray], actual: np.ndarray, skip_every: int, n:int, penalty: float, val: bool = False):
     num_epochs = len(preds)
     indices = range(0, num_epochs, skip_every)
     for index in indices:
-        visualize_convergence(torch.reshape(preds[index],(-1, 2)), actual,epoch_num=index,n=n, penalty=penalty )
+        visualize_convergence(torch.reshape(preds[index],(-1, 2)), actual,epoch_num=index,n=n, penalty=penalty, val = val)
     
 
 
@@ -35,6 +35,7 @@ def circle_metric_with_n(sample_sizes: List[int], noise: float, penalty: float, 
         torch.set_default_dtype(torch.float32)
         trajectories, start_points, start_velo, val_trajectories, val_start_points, val_start_velo = create_geodesic_pairs_circle(num_samps, timesteps, noise = noise)
         sample_basis = torch.reshape(trajectories,(-1, n_dims)) ### only construct basis from whatever points we have 
+        val_sample_basis = torch.reshape(val_trajectories,(-1, n_dims))
         initial_conditions = (start_points, start_velo)
         val_initial_conditions = (val_start_points, val_start_velo)
         visualize_training_data(sample_basis, num_samps, start_velo)
@@ -47,6 +48,12 @@ def circle_metric_with_n(sample_sizes: List[int], noise: float, penalty: float, 
             predicted_trajectories = torch.permute(generated_trajectories, (1,0,2))
             visualize_circle_metric(model, basis_on_manifold, num_samps, penalty)
             visualize_training_data(torch.reshape(predicted_trajectories, (-1, n_dims)), num_samps, penalty = penalty, train = False)
+            
+
+            val_generated_trajectories, _ = model.forward(val_initial_conditions)
+            val_predicted_trajectories = torch.permute(val_generated_trajectories, (1,0,2))
+            plot_convergence([torch.reshape(val_predicted_trajectories, (-1, n_dims))], val_sample_basis,n = num_samps, penalty = penalty, skip_every = 10, val = val)
+
             geodesic_distance = latent_space.metric.dist(latent_space.projection(torch.reshape(predicted_trajectories, (-1, n_dims))), sample_basis).sum()/num_samps
             frechet_loss.append(geodesic_distance)
             model_loss.append(torch.square(predicted_trajectories - trajectories).sum()/num_samps)
@@ -69,6 +76,7 @@ if __name__ == "__main__":
     parser.add_argument('--noise',type=float, help='noise to jitter generated geodesics')
     parser.add_argument('--penalty',type=float, help='how much to penalize prior')
     parser.add_argument('--keep_preds', action="store_true", help='whether or not to plot convergence', default=False)
+    parser.add_argument('--val', action="store_true", help='whether or not to compute validation loss', default=True)
     parser.add_argument('--timesteps', type=int,  help='length of trajectories')
     parser.add_argument('--sample_sizes',type=lambda x: [int(item) for item in x.split(",")], help='comma separated list of ints')
     args = parser.parse_args()
