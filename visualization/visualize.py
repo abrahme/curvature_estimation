@@ -35,7 +35,7 @@ def visualize_training_data(trajectories: np.ndarray, n:int,  tangent_vecs:np.nd
     plt.scatter(trajectories[:,0], trajectories[:,1], alpha=.3,color='red' )
     plt.xlabel('X-axis')
     plt.ylabel('Y-axis')
-    plt.title(f'Density of {"Predicted" if not train else "Trainng"} Trajectory Data')
+    plt.title(f'Density of {"Predicted" if not train else "Training"} Trajectory Data')
     plt.legend()
     plt.savefig(f"data/plots/{'training' if train else 'predicted'}_data_{n}{'_prior' if penalty > 0 else ''}.png")
     plt.clf()

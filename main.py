@@ -1,4 +1,5 @@
 import numpy as np
+import argparse
 import torch
 from typing import List
 from models.train import train
@@ -62,7 +63,17 @@ def circle_metric_with_n(sample_sizes: List[int], noise: float, penalty: float, 
 
 
 if __name__ == "__main__":
-    circle_metric_with_n(sample_sizes = [3, 10, 50], noise = .10, penalty = 1.0, keep_preds=True, timesteps=5)
+
+    parser = argparse.ArgumentParser(description="Arguments for fitting manifold estimation model")
+    # Add command-line arguments
+    parser.add_argument('--noise',type=float, help='noise to jitter generated geodesics')
+    parser.add_argument('--penalty',type=float, help='how much to penalize prior')
+    parser.add_argument('--keep_preds', action="store_true", help='whether or not to plot convergence', default=False)
+    parser.add_argument('--timesteps', type=int,  help='length of trajectories')
+    parser.add_argument('--sample_sizes',type=lambda x: [int(item) for item in x.split(",")], help='comma separated list of ints')
+    args = parser.parse_args()
+
+    circle_metric_with_n(sample_sizes = args.sample_sizes, noise = args.noise, penalty = args.penalty, keep_preds=args.keep_preds, timesteps=args.timesteps)
 
 
 

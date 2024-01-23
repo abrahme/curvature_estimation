@@ -47,7 +47,7 @@ class RiemannianAutoencoder(nn.Module):
         self.n = n ### dimension of manifold
         self.d = d ### number of free functions
         self.t = t ### timepoints to extend
-        self.regularization = torch.FloatTensor([regularization])
+        self.regularization = regularization
         self.basis = basis
 
     def forward(self,initial_conditions):
@@ -64,14 +64,17 @@ class RiemannianAutoencoder(nn.Module):
             parameter_loss += torch.square(gp._beta).sum()
             parameter_loss += torch.sum(gp.ls)
  
-        return reconstruction_loss  + parameter_loss + self.prior_loss()
+        total_loss = reconstruction_loss  + parameter_loss 
+        if self.regularization > 0:
+            total_loss += self.prior_loss()
+        return total_loss
 
     
     def prior_loss(self):
         #### lie derivative loss with symmetry of circle
         ### TODO generalize to other symmetries 
         christoffels = self.metric_space.metric.christoffels(self.basis)
-        prior_loss = self.regularization * torch.square(self.basis[:,0]*(christoffels[:,1,:,:].sum((-1,-2))) - self.basis[:,1]*(christoffels[:,0,:,:].sum((-1,-2)))).sum()
+        prior_loss = torch.FloatTensor([self.regularization]) * torch.square(self.basis[:,0]*(christoffels[:,1,:,:].sum((-1,-2))) - self.basis[:,1]*(christoffels[:,0,:,:].sum((-1,-2)))).sum()
         return prior_loss
 
 
