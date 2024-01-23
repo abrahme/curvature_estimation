@@ -18,7 +18,7 @@ def visualize_convergence(pred_trajectories: np.ndarray, actual_trajectories: np
 
     plt.xlabel('X-axis')
     plt.ylabel('Y-axis')
-    plt.title(f'Density of Convergence of Trajectory Data')
+    # plt.title(f'Density of Convergence of Trajectory Data')
     plt.legend()
     plt.savefig(f"data/plots/epoch_{epoch_num}_convergence_data_{n}{'_prior' if penalty > 0 else ''}.png")
     plt.clf()
@@ -35,7 +35,7 @@ def visualize_training_data(trajectories: np.ndarray, n:int,  tangent_vecs:np.nd
     plt.scatter(trajectories[:,0], trajectories[:,1], alpha=.3,color='red' )
     plt.xlabel('X-axis')
     plt.ylabel('Y-axis')
-    plt.title(f'Density of {"Predicted" if not train else "Training"} Trajectory Data')
+    # plt.title(f'Density of {"Predicted" if not train else "Training"} Trajectory Data')
     plt.legend()
     plt.savefig(f"data/plots/{'training' if train else 'predicted'}_data_{n}{'_prior' if penalty > 0 else ''}.png")
     plt.clf()
@@ -47,7 +47,7 @@ def visualize_training_data(trajectories: np.ndarray, n:int,  tangent_vecs:np.nd
         plt.scatter(trajectories[:,0], trajectories[:,1], alpha=.3,color='red' )
         plt.xlabel('X-axis')
         plt.ylabel('Y-axis')
-        plt.title('Density Map of Sampled Tangent Space')
+        # plt.title('Density Map of Sampled Tangent Space')
         plt.legend()
         plt.savefig(f"data/plots/training_data_tangent_{n}.png")
         plt.clf()
@@ -61,8 +61,8 @@ def visualize_circle_metric(model: RiemannianAutoencoder, basis: np.ndarray, n:i
     # Add labels and a colorbar
     plt.xlabel('X-axis')
     plt.ylabel('Y-axis')
-    plt.title('Metric Evaluation')
-    plt.colorbar(label='Color')
+    # plt.title('Metric Evaluation')
+    plt.colorbar(label='Metric Value')
     plt.savefig(f"data/plots/circle_metric_{n}{'_prior' if penalty > 0 else ''}.png")
     # Show the plot
     plt.clf()
@@ -77,7 +77,7 @@ def visualize_loss(loss_1: np.ndarray, loss_2: np.ndarray, n: List[int]):
     # Add labels and a legend
     plt.xlabel('Training Data Size (samples)')
     plt.ylabel('Loss')
-    plt.title('L2 Loss vs. Frechet Loss')
+    # plt.title('L2 Loss vs. Frechet Loss')
     plt.legend()
     plt.savefig("data/plots/losses.png")
 

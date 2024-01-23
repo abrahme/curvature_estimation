@@ -18,8 +18,7 @@ def plot_convergence(preds: List[np.ndarray], actual: np.ndarray, skip_every: in
     
 
 
-def circle_metric_with_n(sample_sizes: List[int], noise: float, penalty: float, timesteps:int, keep_preds:bool = False):
-    torch.manual_seed(12)
+def circle_metric_with_n(sample_sizes: List[int], noise: float, penalty: float, timesteps:int, keep_preds:bool = False, val:bool = True):
     theta = np.linspace(0, np.pi * 2, 1000)
     basis_on_manifold = torch.from_numpy(np.vstack([np.cos(theta), np.sin(theta)]).T).to(torch.float32)
     xi, yi = torch.meshgrid(torch.linspace(-1.5,1.5,50), torch.linspace(-1.5,1.5,50))
@@ -34,13 +33,14 @@ def circle_metric_with_n(sample_sizes: List[int], noise: float, penalty: float, 
     latent_space = Hypersphere(dim = 1, equip=True)
     for num_samps in sample_sizes:
         torch.set_default_dtype(torch.float32)
-        trajectories, start_points, start_velo = create_geodesic_pairs_circle(num_samps, timesteps, noise = noise)
+        trajectories, start_points, start_velo, val_trajectories, val_start_points, val_start_velo = create_geodesic_pairs_circle(num_samps, timesteps, noise = noise)
         sample_basis = torch.reshape(trajectories,(-1, n_dims)) ### only construct basis from whatever points we have 
         initial_conditions = (start_points, start_velo)
+        val_initial_conditions = (val_start_points, val_start_velo)
         visualize_training_data(sample_basis, num_samps, start_velo)
         model, preds = train(trajectories, initial_conditions, epochs = 300, regularizer=penalty, n = n_dims,
-                       t = timesteps, m = m, c = c, 
-                  basis = manifold_basis.to(torch.float32), active_dims = active_dims, return_preds=keep_preds)
+                       t = timesteps, m = m, c = c, val_initial_conditions=val_initial_conditions, val_input_trajectories=val_trajectories,
+                  basis = manifold_basis.to(torch.float32), active_dims = active_dims, return_preds=keep_preds, val=val)
         
         with torch.no_grad():
             generated_trajectories, _ = model.forward(initial_conditions)
@@ -73,6 +73,7 @@ if __name__ == "__main__":
     parser.add_argument('--sample_sizes',type=lambda x: [int(item) for item in x.split(",")], help='comma separated list of ints')
     args = parser.parse_args()
 
+    torch.manual_seed(12)
     circle_metric_with_n(sample_sizes = args.sample_sizes, noise = args.noise, penalty = args.penalty, keep_preds=args.keep_preds, timesteps=args.timesteps)
 
 

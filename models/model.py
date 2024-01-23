@@ -56,18 +56,24 @@ class RiemannianAutoencoder(nn.Module):
         return predicted_vals
 
     
-    def loss(self, predicted_vals, actual_vals):
+    def loss(self, predicted_vals, actual_vals, val = False):
 
         reconstruction_loss =  torch.square(predicted_vals - actual_vals).sum()
+        
+ 
+        reconstruction_loss
+        if not val:
+            reconstruction_loss += self.parameter_loss()
+        if self.regularization > 0:
+            reconstruction_loss += self.prior_loss()
+        return reconstruction_loss
+    
+    def parameter_loss(self):
         parameter_loss = torch.FloatTensor([0.0])
         for gp in self.gp_components:
             parameter_loss += torch.square(gp._beta).sum()
             parameter_loss += torch.sum(gp.ls)
- 
-        total_loss = reconstruction_loss  + parameter_loss 
-        if self.regularization > 0:
-            total_loss += self.prior_loss()
-        return total_loss
+        return parameter_loss
 
     
     def prior_loss(self):
