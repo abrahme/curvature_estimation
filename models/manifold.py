@@ -1,9 +1,21 @@
 import numpy as np
 import torch
+import geomstats._backend as gs
 from geomstats.geometry.riemannian_metric import RiemannianMetric
 from geomstats.geometry.base import VectorSpace
 from typing import List
 from .hsgp import HSGPExpQuadWithDerivative
+from geomstats.numerics.optimizers import ScipyMinimize
+from geomstats.numerics.geodesic import _LogShootingSolverFlatten, ExpODESolver
+
+class MyBVPSolver(_LogShootingSolverFlatten):
+    def __init__(self, optimizer=None, initialization=None):
+        super().__init__(optimizer, initialization)
+        self.optimizer = ScipyMinimize()
+
+
+
+
 
 def vector_to_lower_triangular(vector, dim_size: int):
     """ converts a vector to a lower triangular matrix
@@ -83,6 +95,8 @@ class GaussianProcessRiemmanianMetric(RiemannianMetric):
         super().__init__(space, signature)
         self.gaussian_processes = gaussian_processes
         self.dimension = space.dim
+        self.exp_solver = ExpODESolver()
+        self.log_solver = MyBVPSolver()
         
 
     def _make_chol(self,array):
@@ -165,6 +179,7 @@ class GaussianProcessRiemmanianMetric(RiemannianMetric):
         chol_inv = torch.linalg.solve_triangular(gp_eval_chol, B, upper = False)
         return torch.einsum("njl,nij -> nli", chol_inv, chol_inv)
 
+    
 
 
     

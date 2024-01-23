@@ -1,31 +1,30 @@
 import matplotlib.pyplot as plt
 import seaborn as sns
 import numpy as np
-from ..models.model import RiemannianAutoencoder
+from models.model import RiemannianAutoencoder
+import torch
 
 
 def visualize_training_data(trajectories: np.ndarray, tangent_vecs:np.ndarray = None, train:bool = True):
-    sns.kdeplot(trajectories[:,0], trajectories[:,1], cmap='Blues', fill=True)
+    sns.kdeplot(trajectories)
     plt.xlabel('X-axis')
     plt.ylabel('Y-axis')
     plt.title('Density of Trajectory Data')
-    plt.colorbar(label='Density')
     plt.show()
     plt.clf()
 
     if train:
-        sns.kdeplot(tangent_vecs[:,0], tangent_vecs[:,1], cmap='Blues', fill=True)
+        sns.kdeplot(tangent_vecs)
         plt.xlabel('X-axis')
         plt.ylabel('Y-axis')
         plt.title('Density Map of Sampled Tangent Space')
-        plt.colorbar(label='Density')
         plt.show()
         plt.clf()
 
 
 def visualize_circle_metric(model: RiemannianAutoencoder, basis: np.ndarray):
     metric_matrix = model.metric_space.metric.metric_matrix(basis)
-    colors = metric_matrix[:,0,0]*basis[:,1]**2 + metric_matrix[:,1,1]*basis[:,0]**2 - 2*metric_matrix[:, 1, 0]*np.prod(basis, axis=0)
+    colors = metric_matrix[:,0,0]*basis[:,1]**2 + metric_matrix[:,1,1]*basis[:,0]**2 - 2*metric_matrix[:, 1, 0]*torch.prod(basis, axis=1)
     plt.scatter(basis[:,0], basis[:,1], c=colors, cmap='viridis')
 
     # Add labels and a colorbar
