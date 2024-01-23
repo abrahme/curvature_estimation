@@ -4,17 +4,25 @@ from typing import List
 from models.train import train
 from geomstats.geometry.hypersphere import Hypersphere
 from data.toy_examples import create_geodesic_pairs_circle
-from visualization.visualize import visualize_circle_metric, visualize_training_data, visualize_loss
+from visualization.visualize import visualize_circle_metric, visualize_training_data, visualize_loss, visualize_convergence
 
 
 
 
+def plot_convergence(preds: List[np.ndarray], actual: np.ndarray, skip_every: int, n:int, penalty: float):
+    num_epochs = len(preds)
+    indices = range(0, num_epochs, skip_every)
+    for index in indices:
+        visualize_convergence(torch.reshape(preds[index],(-1, 2)), actual,epoch_num=index,n=n, penalty=penalty )
+    
 
-def circle_metric_with_n(sample_sizes: List[int], noise: float, penalty: float):
+
+def circle_metric_with_n(sample_sizes: List[int], noise: float, penalty: float, timesteps:int, keep_preds:bool = False):
     torch.manual_seed(12)
     theta = np.linspace(0, np.pi * 2, 1000)
     basis_on_manifold = torch.from_numpy(np.vstack([np.cos(theta), np.sin(theta)]).T).to(torch.float32)
-    
+    xi, yi = torch.meshgrid(torch.linspace(-1.5,1.5,50), torch.linspace(-1.5,1.5,50))
+    manifold_basis = torch.stack([xi.flatten(), yi.flatten()], axis = -1)
     m = [5,5]
     c = 4.0
     active_dims = [0,1]
@@ -25,24 +33,26 @@ def circle_metric_with_n(sample_sizes: List[int], noise: float, penalty: float):
     latent_space = Hypersphere(dim = 1, equip=True)
     for num_samps in sample_sizes:
         torch.set_default_dtype(torch.float32)
-        trajectories, start_points, start_velo = create_geodesic_pairs_circle(num_samps, 5, noise = noise)
-        basis = torch.reshape(trajectories,(-1, n_dims)) ### only construct basis from whatever points we have 
+        trajectories, start_points, start_velo = create_geodesic_pairs_circle(num_samps, timesteps, noise = noise)
+        sample_basis = torch.reshape(trajectories,(-1, n_dims)) ### only construct basis from whatever points we have 
         initial_conditions = (start_points, start_velo)
-        visualize_training_data(basis, num_samps, start_velo)
-        model = train(trajectories, initial_conditions, epochs = 300, regularizer=penalty, n = n_dims,
-                       t = 5, m = m, c = c, 
-                  basis = basis, active_dims = active_dims)
+        visualize_training_data(sample_basis, num_samps, start_velo)
+        model, preds = train(trajectories, initial_conditions, epochs = 300, regularizer=penalty, n = n_dims,
+                       t = timesteps, m = m, c = c, 
+                  basis = manifold_basis.to(torch.float32), active_dims = active_dims, return_preds=keep_preds)
+        
         with torch.no_grad():
             generated_trajectories, _ = model.forward(initial_conditions)
             predicted_trajectories = torch.permute(generated_trajectories, (1,0,2))
-            visualize_circle_metric(model, basis_on_manifold, num_samps)
-            visualize_training_data(torch.reshape(predicted_trajectories, (-1, n_dims)), num_samps, train = False)
-            geodesic_distance = latent_space.metric.dist(latent_space.projection(torch.reshape(predicted_trajectories, (-1, n_dims))), basis).sum()/num_samps
+            visualize_circle_metric(model, basis_on_manifold, num_samps, penalty)
+            visualize_training_data(torch.reshape(predicted_trajectories, (-1, n_dims)), num_samps, penalty = penalty, train = False)
+            geodesic_distance = latent_space.metric.dist(latent_space.projection(torch.reshape(predicted_trajectories, (-1, n_dims))), sample_basis).sum()/num_samps
             frechet_loss.append(geodesic_distance)
             model_loss.append(torch.square(predicted_trajectories - trajectories).sum()/num_samps)
-
-    visualize_loss(model_loss, frechet_loss)
-    raise ValueError
+        if keep_preds:
+            plot_convergence(preds, sample_basis, skip_every=30, n = num_samps, penalty = penalty )
+    visualize_loss(model_loss, frechet_loss, sample_sizes)
+    
 
 
 
@@ -52,7 +62,7 @@ def circle_metric_with_n(sample_sizes: List[int], noise: float, penalty: float):
 
 
 if __name__ == "__main__":
-    circle_metric_with_n(sample_sizes = [5, 100, 500], noise = .05, penalty = 0 )
+    circle_metric_with_n(sample_sizes = [3, 10, 50], noise = .10, penalty = 1.0, keep_preds=True, timesteps=5)
 
 
 
