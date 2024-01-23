@@ -2,6 +2,7 @@ import numpy as np
 import torch
 from typing import List
 from models.train import train
+from geomstats.geometry.hypersphere import Hypersphere
 from data.toy_examples import create_geodesic_pairs_circle
 from visualization.visualize import visualize_circle_metric, visualize_training_data, visualize_loss
 
@@ -21,24 +22,25 @@ def circle_metric_with_n(sample_sizes: List[int], noise: float, penalty: float):
 
     model_loss = []
     frechet_loss = []
+    latent_space = Hypersphere(dim = 1, equip=True)
     for num_samps in sample_sizes:
         torch.set_default_dtype(torch.float32)
         trajectories, start_points, start_velo = create_geodesic_pairs_circle(num_samps, 5, noise = noise)
         basis = torch.reshape(trajectories,(-1, n_dims)) ### only construct basis from whatever points we have 
         initial_conditions = (start_points, start_velo)
-        visualize_training_data(basis, start_velo)
+        visualize_training_data(basis, num_samps, start_velo)
         model = train(trajectories, initial_conditions, epochs = 300, regularizer=penalty, n = n_dims,
                        t = 5, m = m, c = c, 
                   basis = basis, active_dims = active_dims)
         with torch.no_grad():
             generated_trajectories, _ = model.forward(initial_conditions)
             predicted_trajectories = torch.permute(generated_trajectories, (1,0,2))
-            visualize_circle_metric(model, basis_on_manifold)
-            visualize_training_data(torch.reshape(predicted_trajectories, (-1, n_dims)), train = False)
-
-            frechet_loss.append(model.metric_space.metric.dist(torch.reshape(predicted_trajectories, (-1, n_dims)), basis).sum()/num_samps)
+            visualize_circle_metric(model, basis_on_manifold, num_samps)
+            visualize_training_data(torch.reshape(predicted_trajectories, (-1, n_dims)), num_samps, train = False)
+            geodesic_distance = latent_space.metric.dist(latent_space.projection(torch.reshape(predicted_trajectories, (-1, n_dims))), basis).sum()/num_samps
+            frechet_loss.append(geodesic_distance)
             model_loss.append(torch.square(predicted_trajectories - trajectories).sum()/num_samps)
-    
+
     visualize_loss(model_loss, frechet_loss)
     raise ValueError
 
@@ -50,7 +52,7 @@ def circle_metric_with_n(sample_sizes: List[int], noise: float, penalty: float):
 
 
 if __name__ == "__main__":
-    circle_metric_with_n(sample_sizes = [5, 50, 500, 1000], noise = .05, penalty = 0 )
+    circle_metric_with_n(sample_sizes = [5, 100, 500], noise = .05, penalty = 0 )
 
 
 
