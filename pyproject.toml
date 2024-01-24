@@ -25,6 +25,8 @@ blackjax = "^1.0.0"
 numpyro = "^0.13.2"
 autograd = "^1.6.2"
 torchdiffeq = "^0.2.3"
+seaborn = "^0.13.1"
+torchdyn = "^1.0.6"
 
 
 [build-system]

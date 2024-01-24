@@ -1,35 +1,46 @@
 import numpy as np
-import geomstats._backend as gs
 from geomstats.geometry.hypersphere import Hypersphere
-
-
-
-
-def shift_array(arr, num, fill_value=np.nan):
-    result = np.empty_like(arr)
-    if num > 0:
-        result[:num] = fill_value
-        result[num:] = arr[:-num]
-    elif num < 0:
-        result[num:] = fill_value
-        result[:num] = arr[-num:]
-    else:
-        result[:] = arr
-    return result
+import torch
 
 
 def create_geodesic_pairs_circle(N,time_steps, noise = 0):
+    torch.set_default_dtype(torch.float32)
     space = Hypersphere(dim = 1)
-    t = np.linspace(0,1,time_steps)
+    t = torch.linspace(0,1,time_steps)
     start_points = space.random_point(n_samples=N)
-    start_tangent_vecs = space.random_tangent_vec(start_points)
-
-
+    omega = torch.rand((N,1))*(np.pi/5) 
+    start_tangent_vecs = torch.stack([-1*start_points[:,1] , start_points[:,0]], axis = -1)*omega
     geodesic = space.metric.geodesic(initial_point=start_points, initial_tangent_vec = start_tangent_vecs)
-    geodesic_trajectories = gs.expand_dims(geodesic(t),0) if N == 1 else geodesic(t)
-    geodesic_trajectories += np.random.randn(*geodesic_trajectories.shape) * noise
-    
-    return geodesic_trajectories, start_points, start_tangent_vecs
+    geodesic_trajectories = torch.unsqueeze(geodesic(t),0) if N == 1 else geodesic(t)
+    geodesic_trajectories += torch.randn(*geodesic_trajectories.shape) * noise
+
+    val_size = 2*N
+    val_start_points = space.random_point(n_samples=val_size)
+    val_omega = torch.rand((val_size,1))*(np.pi/5) 
+    val_start_tangent_vecs = torch.stack([-1*val_start_points[:,1] , val_start_points[:,0]], axis = -1)*val_omega
+    val_geodesic = space.metric.geodesic(initial_point=val_start_points, initial_tangent_vec = val_start_tangent_vecs)
+    val_geodesic_trajectories = torch.unsqueeze(val_geodesic(t),0) if N == 1 else val_geodesic(t)
+    val_geodesic_trajectories += torch.randn(*val_geodesic_trajectories.shape) * noise
+    return geodesic_trajectories, start_points, start_tangent_vecs, val_geodesic_trajectories, val_start_points, val_start_tangent_vecs
 
 
+def create_geodesic_pairs_circle_hemisphere(N, time_steps, noise = 0):
+    torch.set_default_dtype(torch.float32)
+    space = Hypersphere(dim = 1)
+    t = torch.linspace(0,1,time_steps)
+    theta = torch.rand((N,1)) * np.pi/4 ### sample angle in right quadrant 
+    omega = torch.rand((N,1))*(np.pi/5)  ## sample 
+    start_points = space.angle_to_extrinsic(theta)
+    start_tangent_vecs = torch.stack([-1*start_points[:,1] , start_points[:,0]], axis = -1)*omega
+    geodesic = space.metric.geodesic(initial_point=start_points, initial_tangent_vec = start_tangent_vecs)
+    geodesic_trajectories = torch.unsqueeze(geodesic(t),0) if N == 1 else geodesic(t)
+    geodesic_trajectories += torch.randn(*geodesic_trajectories.shape) * noise
+
+    val_start_points = space.angle_to_extrinsic(theta + np.pi)
+    val_omega = omega
+    val_start_tangent_vecs = torch.stack([-1*val_start_points[:,1] , val_start_points[:,0]], axis = -1)*val_omega
+    val_geodesic = space.metric.geodesic(initial_point=val_start_points, initial_tangent_vec = val_start_tangent_vecs)
+    val_geodesic_trajectories = torch.unsqueeze(val_geodesic(t),0) if N == 1 else val_geodesic(t)
+    val_geodesic_trajectories += torch.randn(*val_geodesic_trajectories.shape) * noise
+    return geodesic_trajectories, start_points, start_tangent_vecs, val_geodesic_trajectories, val_start_points, val_start_tangent_vecs
     
