@@ -7,7 +7,7 @@ from scipy.stats import kde
 import matplotlib.patches as patches
 
 def visualize_convergence(pred_trajectories: np.ndarray, actual_trajectories: np.ndarray, n:int, epoch_num: int, penalty: float, val: bool):
-    nbins=300
+    # nbins=300
 
     # k = kde.gaussian_kde(actual_trajectories.T)
     # xi, yi = np.meshgrid(np.linspace(-1.5,1.5,nbins), np.linspace(-1.5,1.5,nbins))
@@ -32,7 +32,7 @@ def visualize_convergence(pred_trajectories: np.ndarray, actual_trajectories: np
 
 def visualize_training_data(trajectories: np.ndarray, n:int,  tangent_vecs:np.ndarray = None, train:bool = True, penalty:float = 0.0):
     # Evaluate a gaussian kde on a regular grid of nbins x nbins over data extents
-    nbins=300
+    # nbins=300
 
     # k = kde.gaussian_kde(trajectories.T)
     # xi, yi = np.meshgrid(np.linspace(-1.5,1.5,nbins), np.linspace(-1.5,1.5,nbins))
