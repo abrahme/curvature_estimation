@@ -17,7 +17,7 @@ def plot_convergence(preds: List[np.ndarray], actual: np.ndarray, skip_every: in
         visualize_convergence(torch.reshape(preds[index],(-1, 2)), actual,epoch_num=index,n=n, penalty=penalty, val = val)
     
 
-def circle_metric_hemisphere_with_n(sample_sizes: List[int], noise: float, penalty: float, timesteps:int, keep_preds:bool = False, val:bool = True):
+def circle_metric_hemisphere_with_n(sample_sizes: List[int], noise: float, penalty: float, timesteps:int, keep_preds:bool = False, val:bool = True, loss_type:str = "L2"):
     theta = np.linspace(0, np.pi * 2, 1000)
     basis_on_manifold = torch.from_numpy(np.vstack([np.cos(theta), np.sin(theta)]).T).to(torch.float32)
     xi, yi = torch.meshgrid(torch.linspace(-1.5,1.5,50), torch.linspace(-1.5,1.5,50))
@@ -35,12 +35,12 @@ def circle_metric_hemisphere_with_n(sample_sizes: List[int], noise: float, penal
         trajectories, start_points, start_velo, val_trajectories, val_start_points, val_start_velo = create_geodesic_pairs_circle_hemisphere(num_samps, timesteps, noise = noise)
         sample_basis = torch.reshape(trajectories,(-1, n_dims)) ### only construct basis from whatever points we have 
         val_sample_basis = torch.reshape(val_trajectories,(-1, n_dims))
-        initial_conditions = (start_points, start_velo)
-        val_initial_conditions = (val_start_points, val_start_velo)
+        initial_conditions = torch.hstack((start_points, start_velo))
+        val_initial_conditions = torch.hstack((val_start_points, val_start_velo))
         visualize_training_data(sample_basis, num_samps, start_velo)
         model, preds = train(trajectories, initial_conditions, epochs = 300, regularizer=penalty, n = n_dims,
                        t = timesteps, m = m, c = c, val_initial_conditions=val_initial_conditions, val_input_trajectories=val_trajectories,
-                  basis = manifold_basis.to(torch.float32), active_dims = active_dims, return_preds=keep_preds, val=val)
+                  basis = manifold_basis.to(torch.float32), active_dims = active_dims, return_preds=keep_preds, val=val, loss_type = loss_type)
         
         with torch.no_grad():
             generated_trajectories, _ = model.forward(initial_conditions)
@@ -61,7 +61,7 @@ def circle_metric_hemisphere_with_n(sample_sizes: List[int], noise: float, penal
     # visualize_loss(model_loss, frechet_loss, sample_sizes)
 
 
-def circle_metric_with_n(sample_sizes: List[int], noise: float, penalty: float, timesteps:int, keep_preds:bool = False, val:bool = True):
+def circle_metric_with_n(sample_sizes: List[int], noise: float, penalty: float, timesteps:int, keep_preds:bool = False, val:bool = True, loss_type:str = "L2"):
     theta = np.linspace(0, np.pi * 2, 1000)
     basis_on_manifold = torch.from_numpy(np.vstack([np.cos(theta), np.sin(theta)]).T).to(torch.float32)
     xi, yi = torch.meshgrid(torch.linspace(-1.5,1.5,50), torch.linspace(-1.5,1.5,50))
@@ -79,21 +79,21 @@ def circle_metric_with_n(sample_sizes: List[int], noise: float, penalty: float, 
         trajectories, start_points, start_velo, val_trajectories, val_start_points, val_start_velo = create_geodesic_pairs_circle(num_samps, timesteps, noise = noise)
         sample_basis = torch.reshape(trajectories,(-1, n_dims)) ### only construct basis from whatever points we have 
         val_sample_basis = torch.reshape(val_trajectories,(-1, n_dims))
-        initial_conditions = (start_points, start_velo)
-        val_initial_conditions = (val_start_points, val_start_velo)
+        initial_conditions = torch.hstack((start_points, start_velo))
+        val_initial_conditions = torch.hstack((val_start_points, val_start_velo))
         visualize_training_data(sample_basis, num_samps, start_velo)
         model, preds = train(trajectories, initial_conditions, epochs = 300, regularizer=penalty, n = n_dims,
                        t = timesteps, m = m, c = c, val_initial_conditions=val_initial_conditions, val_input_trajectories=val_trajectories,
-                  basis = manifold_basis.to(torch.float32), active_dims = active_dims, return_preds=keep_preds, val=val)
+                  basis = manifold_basis.to(torch.float32), active_dims = active_dims, return_preds=keep_preds, val=val, loss_type = loss_type)
         
         with torch.no_grad():
-            generated_trajectories, _ = model.forward(initial_conditions)
+            generated_trajectories = model.forward(initial_conditions)
             predicted_trajectories = torch.permute(generated_trajectories, (1,0,2))
             visualize_circle_metric(model, basis_on_manifold, num_samps, penalty)
             visualize_training_data(torch.reshape(predicted_trajectories, (-1, n_dims)), num_samps, penalty = penalty, train = False)
             
 
-            val_generated_trajectories, _ = model.forward(val_initial_conditions)
+            val_generated_trajectories = model.forward(val_initial_conditions)
             val_predicted_trajectories = torch.permute(val_generated_trajectories, (1,0,2))
             plot_convergence([torch.reshape(val_predicted_trajectories, (-1, n_dims))], val_sample_basis,n = num_samps, penalty = penalty, skip_every = 10, val = val)
 
@@ -118,6 +118,7 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(description="Arguments for fitting manifold estimation model")
     # Add command-line arguments
+    parser.add_argument("--loss", type = str, help="which type of loss", default = "L2")
     parser.add_argument('--noise',type=float, help='noise to jitter generated geodesics')
     parser.add_argument('--penalty',type=float, help='how much to penalize prior')
     parser.add_argument('--keep_preds', action="store_true", help='whether or not to plot convergence', default=False)
@@ -129,10 +130,10 @@ if __name__ == "__main__":
 
     torch.manual_seed(12)
     if args.hemisphere:
-        circle_metric_hemisphere_with_n(sample_sizes = args.sample_sizes, noise = args.noise, penalty = args.penalty, keep_preds=args.keep_preds, timesteps=args.timesteps)
+        circle_metric_hemisphere_with_n(sample_sizes = args.sample_sizes, noise = args.noise, penalty = args.penalty, keep_preds=args.keep_preds, timesteps=args.timesteps, loss_type=args.loss)
 
     else:
-        circle_metric_with_n(sample_sizes = args.sample_sizes, noise = args.noise, penalty = args.penalty, keep_preds=args.keep_preds, timesteps=args.timesteps)
+        circle_metric_with_n(sample_sizes = args.sample_sizes, noise = args.noise, penalty = args.penalty, keep_preds=args.keep_preds, timesteps=args.timesteps, loss_type=args.loss)
 
 
 
