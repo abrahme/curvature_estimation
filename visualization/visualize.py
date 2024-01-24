@@ -67,7 +67,7 @@ def visualize_training_data(trajectories: np.ndarray, n:int,  tangent_vecs:np.nd
 
 
 def visualize_circle_metric(model: RiemannianAutoencoder, basis: np.ndarray, n:int, penalty: float):
-    metric_matrix = model.metric_space.metric.metric_matrix(basis)
+    metric_matrix = model.metric_space.metric_matrix(basis)
     colors = metric_matrix[:,0,0]*basis[:,1]**2 + metric_matrix[:,1,1]*basis[:,0]**2 - 2*metric_matrix[:, 1, 0]*torch.prod(basis, axis=1)
     plt.scatter(basis[:,0], basis[:,1], c=colors, cmap='viridis')
     # Add labels and a colorbar
