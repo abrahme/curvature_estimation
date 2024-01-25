@@ -29,8 +29,8 @@ class ODEBlock(nn.Module):
     
     def forward(self, X: torch.Tensor, integration_time):
 
-        t_eval, out = self.ode_solver(X, integration_time)
-        return t_eval, out
+        _, out = self.ode_solver(X, integration_time)
+        return out
 
 class RiemannianAutoencoder(nn.Module):
 
@@ -51,8 +51,9 @@ class RiemannianAutoencoder(nn.Module):
 
     def forward(self,initial_conditions):
         time_steps = torch.linspace(0.0,1.0,self.t)
-        _, predicted_vals = self.ode_layer(initial_conditions, time_steps)
-        return torch.split(predicted_vals,split_size_or_sections=2,dim=2)[0]
+        predicted_vals = self.ode_layer(initial_conditions, time_steps)
+        split_size = self.n
+        return predicted_vals[:,:,0:split_size]
 
     
     def loss(self, predicted_vals, actual_vals, val = False):

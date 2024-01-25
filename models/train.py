@@ -53,8 +53,7 @@ def train(input_trajectories, initial_conditions: torch.Tensor, val_input_trajec
     # early_stopping = EarlyStopping(patience=3, verbose=True)
     model = RiemannianAutoencoder(n,t,m,c,regularizer, basis, active_dims, loss_type =loss_type)
     optimizer = optim.Adam(model.parameters(), lr=0.01)
-
-    preds = []
+    preds = []  
     with torch.no_grad():
         predicted_trajectories = model.forward(initial_conditions)
         preds.append(torch.permute(predicted_trajectories.detach(), (1,0,2)))
@@ -64,7 +63,7 @@ def train(input_trajectories, initial_conditions: torch.Tensor, val_input_trajec
         predicted_trajectories = model.forward(initial_conditions)
         loss = model.loss(torch.permute(predicted_trajectories.float(), (1,0,2)), input_trajectories.float())
         # Backward pass and optimization
-        loss.backward(retain_graph = True)
+        loss.backward(retain_graph=True)
         
         optimizer.step()
 
