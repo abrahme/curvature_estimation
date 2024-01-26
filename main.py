@@ -11,11 +11,11 @@ from visualization.visualize import visualize_circle_metric, visualize_loss, vis
 
 
 
-def plot_convergence(preds: List[np.ndarray], actual: np.ndarray, skip_every: int, n:int, penalty: float, val: bool = False, noise: int = 0):
+def plot_convergence(preds: List[np.ndarray], actual: np.ndarray, skip_every: int, n:int, penalty: float, val: bool = False, noise: int = 0, hemisphere:bool = False):
     num_epochs = len(preds)
     indices = range(0, num_epochs, skip_every)
     for index in indices:
-        visualize_convergence(torch.reshape(preds[index],(-1, 2)), actual,epoch_num=index,n=n, penalty=penalty, val = val, noise=noise)
+        visualize_convergence(torch.reshape(preds[index],(-1, 2)), actual,epoch_num=index,n=n, penalty=penalty, val = val, noise=noise, hemisphere=hemisphere)
 
 def plot_convergence_sphere(preds: List[np.ndarray], actual: np.ndarray, skip_every: int, n:int, penalty: float, val: bool = False):
     num_epochs = len(preds)
@@ -27,7 +27,7 @@ def circle_metric_hemisphere_with_n(sample_sizes: List[int], noise_level: List[f
     theta = np.linspace(0, np.pi * 2, 1000)
     basis_on_manifold = torch.from_numpy(np.vstack([np.cos(theta), np.sin(theta)]).T).to(torch.float32)
     xi, yi = torch.meshgrid(torch.linspace(-1.5,1.5,50), torch.linspace(-1.5,1.5,50))
-    manifold_basis = torch.stack([xi.flatten(), yi.flatten()], axis = -1)
+    # manifold_basis = torch.stack([xi.flatten(), yi.flatten()], axis = -1)
     m = [5,5]
     c = 4.0
     active_dims = [0,1]
@@ -38,6 +38,7 @@ def circle_metric_hemisphere_with_n(sample_sizes: List[int], noise_level: List[f
     latent_space = Hypersphere(dim = 1, equip=True)
     for noise in noise_level:
         for num_samps in sample_sizes:
+            print(noise, num_samps)
             torch.set_default_dtype(torch.float32)
             trajectories, start_points, start_velo, val_trajectories, val_start_points, val_start_velo = create_geodesic_pairs_circle_hemisphere(num_samps, timesteps, noise = 1/noise)
             sample_basis = torch.reshape(trajectories,(-1, n_dims)) ### only construct basis from whatever points we have 
@@ -47,30 +48,28 @@ def circle_metric_hemisphere_with_n(sample_sizes: List[int], noise_level: List[f
     
             model, preds = train(trajectories, initial_conditions, epochs = 300, regularizer=penalty, n = n_dims,
                         t = timesteps, m = m, c = c, val_initial_conditions=val_initial_conditions, val_input_trajectories=val_trajectories,
-                    basis = manifold_basis.to(torch.float32), active_dims = active_dims, return_preds=keep_preds, val=val, loss_type = loss_type)
+                    basis = sample_basis, active_dims = active_dims, return_preds=keep_preds, val=val, loss_type = loss_type)
             
             with torch.no_grad():
-                visualize_circle_metric(model, basis_on_manifold, num_samps, penalty, noise = noise)
+                visualize_circle_metric(model, basis_on_manifold, num_samps, penalty, noise = noise, hemisphere=True)
                 
 
                 val_generated_trajectories = model.forward(val_initial_conditions)
                 val_predicted_trajectories = torch.permute(val_generated_trajectories, (1,0,2))
-                plot_convergence([torch.reshape(val_predicted_trajectories, (-1, n_dims))], val_sample_basis,n = num_samps, penalty = penalty, skip_every = 30, val = val, noise=noise)
+                plot_convergence([torch.reshape(val_predicted_trajectories, (-1, n_dims))], val_sample_basis,n = num_samps, penalty = penalty, skip_every = 30, val = val, noise=noise, hemisphere=True)
 
                 val_geodesic_distance = latent_space.metric.dist(latent_space.projection(torch.reshape(val_predicted_trajectories, (-1, n_dims))), val_sample_basis).mean()
                 losses.append({"loss_val":val_geodesic_distance, "n": num_samps, "noise": 1/noise, "loss_type": "geodesic"})
                 losses.append({"loss_val":torch.square(val_predicted_trajectories - val_trajectories).mean(),
                               "n": num_samps, "noise":1/noise, "loss_type": "model"})
             if keep_preds:
-                plot_convergence(preds, sample_basis, skip_every=30, n = num_samps, penalty = penalty, noise=noise )
+                plot_convergence(preds, sample_basis, skip_every=30, n = num_samps, penalty = penalty, noise=noise, hemisphere=True )
     pd.DataFrame(losses).to_csv("data/hemisphere_circle_losses.csv", index=False)
 
 
 def circle_metric_with_n(sample_sizes: List[int], noise_level: float, penalty: float, timesteps:int, keep_preds:bool = False, val:bool = True, loss_type:str = "L2"):
     theta = np.linspace(0, np.pi * 2, 1000)
     basis_on_manifold = torch.from_numpy(np.vstack([np.cos(theta), np.sin(theta)]).T).to(torch.float32)
-    xi, yi = torch.meshgrid(torch.linspace(-1.5,1.5,50), torch.linspace(-1.5,1.5,50))
-    manifold_basis = torch.stack([xi.flatten(), yi.flatten()], axis = -1)
     m = [5,5]
     c = 4.0
     active_dims = [0,1]
@@ -88,7 +87,7 @@ def circle_metric_with_n(sample_sizes: List[int], noise_level: float, penalty: f
             val_initial_conditions = torch.hstack((val_start_points, val_start_velo))
             model, preds = train(trajectories, initial_conditions, epochs = 300, regularizer=penalty, n = n_dims,
                         t = timesteps, m = m, c = c, val_initial_conditions=val_initial_conditions, val_input_trajectories=val_trajectories,
-                    basis = manifold_basis.to(torch.float32), active_dims = active_dims, return_preds=keep_preds, val=val, loss_type = loss_type)
+                    basis = sample_basis, active_dims = active_dims, return_preds=keep_preds, val=val, loss_type = loss_type)
             
             with torch.no_grad():
                 visualize_circle_metric(model, basis_on_manifold, num_samps, penalty, noise=noise)

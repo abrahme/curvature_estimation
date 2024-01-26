@@ -8,7 +8,7 @@ from pathlib import Path
 
 
 
-def visualize_convergence(pred_trajectories: np.ndarray, actual_trajectories: np.ndarray, n:int, epoch_num: int, penalty: float, val: bool, noise: int):
+def visualize_convergence(pred_trajectories: np.ndarray, actual_trajectories: np.ndarray, n:int, epoch_num: int, penalty: float, val: bool, noise: int, hemisphere:bool = False):
 
     plt.scatter(actual_trajectories[:,0], actual_trajectories[:,1], alpha=.3,color='blue', label = "Actual")
     plt.scatter(pred_trajectories[:,0], pred_trajectories[:,1], color = "red", alpha = .3, label = "Predicted")
@@ -24,7 +24,7 @@ def visualize_convergence(pred_trajectories: np.ndarray, actual_trajectories: np
     plt.legend()
     prior_path = 'prior' if penalty > 0 else 'normal'
     training_path = "val" if val else "training"
-    fpath = f"data/plots/{prior_path}/{training_path}/{n}/{noise}"
+    fpath = f"data/{'plots' if not hemisphere else 'hemisphere_plots'}/{prior_path}/{training_path}/{n}/{noise}"
 
         # Specify the directory path
     directory_path = Path(fpath)
@@ -67,7 +67,7 @@ def visualize_convergence_sphere(pred_trajectories: np.ndarray, actual_trajector
 
 
 
-def visualize_circle_metric(model: RiemannianAutoencoder, basis: np.ndarray, n:int, penalty: float, noise: int):
+def visualize_circle_metric(model: RiemannianAutoencoder, basis: np.ndarray, n:int, penalty: float, noise: int, hemisphere:bool = False):
     metric_matrix = model.metric_space.metric_matrix(basis)
     colors = metric_matrix[:,0,0]*basis[:,1]**2 + metric_matrix[:,1,1]*basis[:,0]**2 - 2*metric_matrix[:, 1, 0]*torch.prod(basis, axis=1)
     plt.scatter(basis[:,0], basis[:,1], c=colors, cmap='viridis')
@@ -78,7 +78,7 @@ def visualize_circle_metric(model: RiemannianAutoencoder, basis: np.ndarray, n:i
     plt.colorbar(label='Metric Value')
 
     prior_path = 'prior' if penalty > 0 else 'normal'
-    fpath = f"data/plots/{prior_path}/training/{n}/{noise}"
+    fpath = f"data/{'plots' if not hemisphere else 'hemisphere_plots'}/{prior_path}/training/{n}/{noise}"
     directory_path = Path(fpath)
 
     # Check if the directory exists

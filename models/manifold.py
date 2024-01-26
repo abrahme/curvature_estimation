@@ -251,10 +251,3 @@ class GaussianProcessRiemmanianMetric(nn.Module):
     
 
 
-
-    
-
-
-        
-        
-

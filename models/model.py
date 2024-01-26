@@ -64,7 +64,7 @@ class RiemannianAutoencoder(nn.Module):
             for i in range(predicted_vals.shape[0]):
                 reconstruction_loss += SamplesLoss("sinkhorn")(predicted_vals[i], actual_vals[i])
         if not val:
-            reconstruction_loss = reconstruction_loss + self.parameter_loss()
+            reconstruction_loss = reconstruction_loss + self.parameter_loss() * .001 ### same scale 
         
         if self.regularization > 0:
             if not val:
