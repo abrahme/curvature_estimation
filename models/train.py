@@ -2,7 +2,7 @@ from typing import List, Tuple
 import torch
 import numpy as np
 import torch.optim as optim
-from .model import RiemannianAutoencoder
+from .model import RiemannianAutoencoder, SymmetricRiemannianAutoencoder
 
 
 class EarlyStopping:
@@ -50,7 +50,6 @@ def train(input_trajectories, initial_conditions: torch.Tensor, val_input_trajec
           val_initial_conditions:Tuple[torch.Tensor, torch.Tensor],  epochs, 
           regularizer:float, n, t, m:List[int], c:float, basis, active_dims: List, return_preds:bool = False, val: bool = False, loss_type:str = "L2"):
     
-    # early_stopping = EarlyStopping(patience=3, verbose=True)
     model = RiemannianAutoencoder(n,t,m,c,regularizer, basis, active_dims, loss_type =loss_type)
     optimizer = optim.Adam(model.parameters(), lr=0.01)
     preds = []  
@@ -61,7 +60,7 @@ def train(input_trajectories, initial_conditions: torch.Tensor, val_input_trajec
         optimizer.zero_grad()
         # Forward pass
         predicted_trajectories = model.forward(initial_conditions)
-        loss = model.loss(torch.permute(predicted_trajectories.float(), (1,0,2)), input_trajectories.float())
+        loss = model.loss(torch.permute(predicted_trajectories, (1,0,2)), input_trajectories.float())
         # Backward pass and optimization
         loss.backward(retain_graph=True)
         
@@ -78,14 +77,45 @@ def train(input_trajectories, initial_conditions: torch.Tensor, val_input_trajec
             preds.append(torch.permute(predicted_trajectories.detach(), (1,0,2)))
 
         print(f"Epoch: {epoch + 1}, Loss: {loss.item()}, Val Loss: {val_loss.item()}")
-        # if val:
-        #     early_stopping(val_loss)
-        
-        #     if early_stopping.early_stop:
-        #         print("Early stopping")
-        #         break
+
 
 
     return model, preds
 
 
+
+
+def train_symmetric_circle(input_trajectories, initial_conditions: torch.Tensor, val_input_trajectories, 
+          val_initial_conditions:Tuple[torch.Tensor, torch.Tensor],  epochs, n, t, m:List[int], c:float, basis, active_dims: List, return_preds:bool = False, val: bool = False, loss_type:str = "L2"):
+    
+    model = SymmetricRiemannianAutoencoder(n = n,t = t,m = m,c = c, basis = basis, active_dims = active_dims, loss_type =loss_type)
+    optimizer = optim.Adam(model.parameters(), lr=0.01)
+    preds = []  
+    with torch.no_grad():
+        predicted_trajectories = model.forward(initial_conditions)
+        preds.append(torch.permute(predicted_trajectories.detach(), (1,0,2)))
+    for epoch in range(epochs):
+        print(f"in epoch {epoch}")
+        optimizer.zero_grad()
+        # Forward pass
+        predicted_trajectories = model.forward(initial_conditions)
+        loss = model.loss(torch.permute(predicted_trajectories, (1,0,2)), input_trajectories.float())
+        # Backward pass and optimization
+        loss.backward(retain_graph=True)
+        
+        optimizer.step()
+
+        if val:
+            model.eval()
+            with torch.no_grad():
+                predicted_val_trajectories = model.forward(val_initial_conditions)
+                val_loss = model.loss(torch.permute(predicted_val_trajectories.float().detach(), (1,0,2)), val_input_trajectories.float(), val = True)
+        else:
+            val_loss = "None"
+        if return_preds:
+            preds.append(torch.permute(predicted_trajectories.detach(), (1,0,2)))
+
+        print(f"Epoch: {epoch + 1}, Loss: {loss.item()}, Val Loss: {val_loss.item()}")
+
+
+    return model, preds
