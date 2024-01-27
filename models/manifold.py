@@ -257,7 +257,7 @@ class GaussianProcessRiemmanianMetricSymmetricCircle(GaussianProcessRiemmanianMe
         cometric_mat_at_point = self.cometric_matrix(base_point)
 
         metric_derivative_at_point = self.inner_product_derivative_matrix(base_point)
-        ratio = (base_point[:,1] / base_point[:,0]).view(-1, 1, 1, 1) ### modulating factor 
+        ratio = (base_point[:,1]).view(-1, 1, 1, 1) ### modulating factor 
         base_dim = 0 ### dimension to relate to others to 
         cometric_base = cometric_mat_at_point[:,:,base_dim][:,:, None]
         term_1_base = torch.einsum(
@@ -276,6 +276,30 @@ class GaussianProcessRiemmanianMetricSymmetricCircle(GaussianProcessRiemmanianMe
         result = torch.cat([christoffel_base, christoffel_transformed], axis = 1)
         return result
 
-           
+    def geodesic_equation(self, state, _time):
+        """Compute the geodesic ODE associated with the connection.
+
+        Parameters
+        ----------
+        state : array-like, shape=[..., dim]
+            Tangent vector at the position.
+        _time : array-like, shape=[..., dim]
+            Point on the manifold, the position at which to compute the
+            geodesic ODE.
+
+        Returns
+        -------
+        geodesic_ode : array-like, shape=[..., dim]
+            Value of the vector field to be integrated at position.
+        """
+        position, velocity = state
+        gamma = self.christoffels(position)
+        base_dim = 0
+        augmented_acceleration = torch.cat([torch.ones_like(position[:,base_dim][:, None]), position[:,base_dim][:, None]], axis = -1)
+
+        equation = torch.einsum("...kij,...i->...kj", gamma, velocity) 
+        equation = -torch.einsum("...kj,...j->...k", equation, velocity) * augmented_acceleration
+        return torch.hstack([velocity, equation])
+
 
 

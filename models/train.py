@@ -50,7 +50,7 @@ def train(input_trajectories, initial_conditions: torch.Tensor, val_input_trajec
           val_initial_conditions:Tuple[torch.Tensor, torch.Tensor],  epochs, 
           regularizer:float, n, t, m:List[int], c:float, basis, active_dims: List, return_preds:bool = False, val: bool = False, loss_type:str = "L2"):
     
-    model = RiemannianAutoencoder(n,t,m,c,regularizer, basis, active_dims, loss_type =loss_type)
+    model = RiemannianAutoencoder(n =n,t = t,m = m,c = c,regularization=regularizer, basis = basis, active_dims = active_dims, loss_type =loss_type)
     optimizer = optim.Adam(model.parameters(), lr=0.01)
     preds = []  
     with torch.no_grad():
@@ -95,7 +95,6 @@ def train_symmetric_circle(input_trajectories, initial_conditions: torch.Tensor,
         predicted_trajectories = model.forward(initial_conditions)
         preds.append(torch.permute(predicted_trajectories.detach(), (1,0,2)))
     for epoch in range(epochs):
-        print(f"in epoch {epoch}")
         optimizer.zero_grad()
         # Forward pass
         predicted_trajectories = model.forward(initial_conditions)

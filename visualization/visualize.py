@@ -46,7 +46,7 @@ def visualize_convergence(pred_trajectories: np.ndarray, actual_trajectories: np
     plt.savefig(f"{fpath}/epoch_{epoch_num}_convergence_data.png")
     plt.clf()
 
-def visualize_convergence_sphere(pred_trajectories: np.ndarray, actual_trajectories: np.ndarray, n:int, epoch_num: int, penalty: float, val: bool):
+def visualize_convergence_sphere(pred_trajectories: np.ndarray, actual_trajectories: np.ndarray, n:int, noise:int,  epoch_num: int, hemisphere:bool = False,penalty: float = 0,  prior:bool = False, val:bool = False):
     ax = plt.figure().add_subplot(projection='3d')
     ax.scatter(actual_trajectories[:,0], actual_trajectories[:,1], actual_trajectories[:,2], alpha=.3,color='blue', label = "Actual")
     ax.scatter(pred_trajectories[:,0], pred_trajectories[:,1], pred_trajectories[:,2], alpha=.3,color='red', label = "Predicted")
@@ -63,11 +63,32 @@ def visualize_convergence_sphere(pred_trajectories: np.ndarray, actual_trajector
 
     ax.plot_wireframe(x, y, z, color="green", label = "sphere", linestyle="dashed")
 
-    # ax.xlabel('X-axis')
-    # ax.ylabel('Y-axis')
+
+ 
+
+    prior_path = "normal"
+    if prior:
+        if penalty > 0:
+             prior_path = "prior"
+        elif penalty == 0:
+            prior_path = "explicit_prior"
+
+    training_path = "val" if val else "training"
+    fpath = f"data/{'sphere_plots' if not hemisphere else 'sphere_hemisphere_plots'}/{prior_path}/{training_path}/{n}/{noise}"
+
+        # Specify the directory path
+    directory_path = Path(fpath)
+
+    # Check if the directory exists
+    if not directory_path.exists():
+        # Create the directory
+        directory_path.mkdir(parents=True, exist_ok=True)
+        print(f"Directory '{directory_path}' created.")
+    else:
+        print(f"Directory '{directory_path}' already exists.")
+
     ax.legend()
-    plt.show()
-    plt.savefig(f"data/plots/sphere_epoch_{epoch_num}_convergence_data_{n}{'_prior' if penalty > 0 else ''}{'_val' if val else ''}.png")
+    plt.savefig(f"{directory_path}/epoch_{epoch_num}_convergence_data.png")
     plt.clf()
 
 
@@ -122,22 +143,3 @@ def visualize_loss(loss_1: np.ndarray, loss_2: np.ndarray, n: List[int]):
     plt.show()
 
 
-def visualize_training_data_sphere(trajectories: np.ndarray, n:int,  train:bool = True, penalty:float = 0.0):
-    ax = plt.figure().add_subplot(projection='3d')
-    ax.scatter(trajectories[:,0], trajectories[:,1], trajectories[:,2], alpha=.3,color='blue', label = "Actual")
-
-
-    theta = np.linspace(0, 2 * np.pi, 10)
-    phi = np.linspace(0, 2*np.pi, 10)
-
-    u, v = np.meshgrid(theta, phi)
-    x = np.cos(u)*np.sin(v)
-    y = np.sin(u)*np.sin(v)
-    z = np.cos(v)
-    ax.plot_wireframe(x, y, z, color="green", label = "sphere", linestyle="dashed")
-    # ax.xlabel('X-axis')
-    # ax.ylabel('Y-axis')
-    ax.legend()
-    plt.show()
-    plt.savefig(f"data/plots/sphere_{'training' if train else 'predicted'}_data_{n}{'_prior' if penalty > 0 else ''}.png")
-    plt.clf()
