@@ -55,11 +55,10 @@ def visualize_convergence_sphere(pred_trajectories: np.ndarray, actual_trajector
     theta = np.linspace(0, 2 * np.pi, 10)
     phi = np.linspace(0, 2*np.pi, 10)
 
-    u, v = np.meshgrid([theta, phi])
+    u, v = np.meshgrid(theta, phi)
     x = np.cos(u)*np.sin(v)
     y = np.sin(u)*np.sin(v)
     z = np.cos(v)
-    # draw sphere
 
     ax.plot_wireframe(x, y, z, color="green", label = "sphere", linestyle="dashed")
 

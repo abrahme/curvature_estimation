@@ -65,4 +65,6 @@ def create_geodesic_pairs_sphere(N, time_steps, noise = 0):
     val_geodesic_trajectories += torch.randn(*val_geodesic_trajectories.shape) * noise
     return geodesic_trajectories, start_points, start_tangent_vecs, val_geodesic_trajectories, val_start_points, val_start_tangent_vecs
 
+
+
     

@@ -5,7 +5,7 @@ from torchdyn.core import NeuralODE
 from typing import List
 import torch.nn as nn
 from .hsgp import HSGPExpQuadWithDerivative
-from .manifold import GaussianProcessRiemmanianMetric, GaussianProcessRiemmanianMetricSymmetricCircle
+from .manifold import GaussianProcessRiemmanianMetric, GaussianProcessRiemmanianMetricSymmetricCircle, GaussianProcessRiemannianMetricSymmetricSphere
 
 
 
@@ -57,6 +57,7 @@ class RiemannianAutoencoder(nn.Module):
 
     
     def loss(self, predicted_vals, actual_vals, val = False):
+        
         if self.loss_type == "L2":
             reconstruction_loss = nn.MSELoss()(predicted_vals,actual_vals)
         elif self.loss_type == "Hausdorff":
@@ -64,7 +65,7 @@ class RiemannianAutoencoder(nn.Module):
             for i in range(predicted_vals.shape[0]):
                 reconstruction_loss += SamplesLoss("sinkhorn")(predicted_vals[i], actual_vals[i])
         if not val:
-            reconstruction_loss = reconstruction_loss + self.parameter_loss() * .001 ### same scale 
+            reconstruction_loss = reconstruction_loss + self.parameter_loss() * (1/(10 ** (self.n + 1)))
         
         if self.regularization > 0:
             if not val:
@@ -118,7 +119,7 @@ class SymmetricRiemannianAutoencoder(nn.Module):
             for i in range(predicted_vals.shape[0]):
                 reconstruction_loss += SamplesLoss("sinkhorn")(predicted_vals[i], actual_vals[i])
         if not val:
-            reconstruction_loss = reconstruction_loss + self.parameter_loss() * .001 ### same scale 
+            reconstruction_loss = reconstruction_loss + self.parameter_loss() * (1/(10 ** (self.n + 1)))
         return reconstruction_loss
     
     def parameter_loss(self):
@@ -126,11 +127,68 @@ class SymmetricRiemannianAutoencoder(nn.Module):
         for gp in self.gp_components:
             parameter_loss += torch.square(gp._beta).mean()/len(self.gp_components)
             parameter_loss += torch.mean(gp.ls)/len(self.gp_components)
+
         return parameter_loss
 
+
+class SymmetricRiemannianAutoencoderSphere(nn.Module):
+    def __init__(self, n: int,t: int,  m: List[int], c: float,  basis, active_dims: List, loss_type: str = "L2"):
+        super(SymmetricRiemannianAutoencoder, self).__init__()
+        d = int(n*(n+1)/2)
+        self.gp_components = nn.ModuleList([HSGPExpQuadWithDerivative(m, c, active_dims) for _ in range(d)])
+        for gp_component in self.gp_components:
+            gp_component.prior_linearized(basis) ### initialize basis
+        self.metric_space = GaussianProcessRiemmanianMetricSymmetricSphere(n, self.gp_components)
+        self.ode_layer = ODEBlock(self.metric_space)
+        self.n = n ### dimension of manifold
+        self.d = d ### number of free functions
+        self.t = t ### timepoints to extend
+
+        self.basis = basis
+        self.loss_type = loss_type
+
+    def forward(self,initial_conditions):
+        time_steps = torch.linspace(0.0,1.0,self.t)
+        predicted_vals = self.ode_layer(initial_conditions, time_steps)
+        split_size = self.n
+        return predicted_vals[:,:,0:split_size]
+
+    
+    def loss(self, predicted_vals, actual_vals, val = False):
+        if self.loss_type == "L2":
+            reconstruction_loss = nn.MSELoss()(predicted_vals,actual_vals)
+        elif self.loss_type == "Hausdorff":
+            reconstruction_loss = torch.FloatTensor([0.0])
+            for i in range(predicted_vals.shape[0]):
+                reconstruction_loss += SamplesLoss("sinkhorn")(predicted_vals[i], actual_vals[i])
+        if not val:
+            reconstruction_loss = reconstruction_loss + self.parameter_loss() * (1/(10 ** (self.n + 1)))
+        return reconstruction_loss
+    
+    def parameter_loss(self):
+        parameter_loss = torch.FloatTensor([0.0])
+        for gp in self.gp_components:
+            parameter_loss += torch.square(gp._beta).mean()/len(self.gp_components)
+            parameter_loss += torch.mean(gp.ls)/len(self.gp_components)
+
+        return parameter_loss
     
 
 
+# Create a simple autoencoder class
+class VanillaAutoencoder(nn.Module):
+    def __init__(self, input_size, hidden_size):
+        super(VanillaAutoencoder, self).__init__()
+        self.encoder = nn.Linear(input_size, hidden_size)
+        self.decoder = nn.Linear(hidden_size, input_size)
+
+    def forward(self, x):
+        encoded = self.encoder(x)
+        decoded = self.decoder(encoded)
+        return decoded
+
+    def loss(self, x):
+        return nn.MSELoss()(x, self.forward(x))
 
 
 
