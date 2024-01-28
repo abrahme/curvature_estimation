@@ -1,8 +1,6 @@
 import numpy as np
 import torch
 import torch.nn as nn
-import geomstats._backend as gs
-from geomstats.geometry.riemannian_metric import RiemannianMetric
 from geomstats.geometry.base import VectorSpace
 from typing import List
 from .hsgp import HSGPExpQuadWithDerivative

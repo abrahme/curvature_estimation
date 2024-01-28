@@ -5,7 +5,7 @@ from torchdyn.core import NeuralODE
 from typing import List
 import torch.nn as nn
 from .hsgp import HSGPExpQuadWithDerivative
-from .manifold import GaussianProcessRiemmanianMetric, GaussianProcessRiemmanianMetricSymmetricCircle, GaussianProcessRiemannianMetricSymmetricSphere
+from .manifold import GaussianProcessRiemmanianMetric, GaussianProcessRiemmanianMetricSymmetricCircle, GaussianProcessRiemmanianMetricSymmetricSphere
 
 
 
