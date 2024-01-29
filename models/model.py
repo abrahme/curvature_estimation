@@ -133,7 +133,7 @@ class SymmetricRiemannianAutoencoder(nn.Module):
 
 class SymmetricRiemannianAutoencoderSphere(nn.Module):
     def __init__(self, n: int,t: int,  m: List[int], c: float,  basis, active_dims: List, loss_type: str = "L2"):
-        super(SymmetricRiemannianAutoencoder, self).__init__()
+        super(SymmetricRiemannianAutoencoderSphere, self).__init__()
         d = int(n*(n+1)/2)
         self.gp_components = nn.ModuleList([HSGPExpQuadWithDerivative(m, c, active_dims) for _ in range(d)])
         for gp_component in self.gp_components:

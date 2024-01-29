@@ -306,11 +306,12 @@ class GaussianProcessRiemmanianMetricSymmetricSphere(GaussianProcessRiemmanianMe
 
     def christoffels(self, base_point):
         cometric_mat_at_point = self.cometric_matrix(base_point)
-
-        metric_derivative_at_point = self.inner_product_derivative_matrix(base_point)
-        ratio = (base_point[:,1]).view(-1, 1, 1, 1) ### modulating factor 
         base_dim = 0 ### dimension to relate to others to 
-        ratio_untouched = (base_point[:,base_dim].view(-1,1,1,1))
+        metric_derivative_at_point = self.inner_product_derivative_matrix(base_point)
+
+        denominator = (base_point[:,1]).view(-1,1,1,1) ### modulating factor 
+        numerator =  (base_point[:,base_dim]).view(-1,1,1,1) ### modulating factor 
+
         cometric_base = cometric_mat_at_point[:,:,base_dim][:,:, None]
         term_1_base = torch.einsum(
             "...lk,...jli->...kij",cometric_base , metric_derivative_at_point
@@ -321,6 +322,8 @@ class GaussianProcessRiemmanianMetricSymmetricSphere(GaussianProcessRiemmanianMe
         term_3_base = -torch.einsum(
             "...lk,...ijl->...kij", cometric_base, metric_derivative_at_point
         )
+
+        christoffel_base = 0.5 * (term_1_base + term_2_base + term_3_base)
 
         cometric_untouched = cometric_mat_at_point[:,:,-1][:,:, None]
         term_1_untouched = torch.einsum(
@@ -333,12 +336,43 @@ class GaussianProcessRiemmanianMetricSymmetricSphere(GaussianProcessRiemmanianMe
             "...lk,...ijl->...kij", cometric_untouched, metric_derivative_at_point
         )
 
-        christoffel_untouched = 0.5 *(term_1_untouched + term_2_untouched + term_3_untouched)
+        christoffel_untouched = 0.5 * (term_1_untouched + term_2_untouched + term_3_untouched)
 
-        christoffel_base = 0.5 *(term_1_base + term_2_base + term_3_base)
+        cometric_transformed = cometric_mat_at_point[:,:,1][:,:, None]
 
-        christoffel_transformed = ratio * christoffel_base
-        result = torch.cat([christoffel_base, christoffel_transformed, christoffel_untouched * ratio_untouched ], axis = 1)
+        ### ...3,1, ...1,3,3 -> ...1,1,3
+        
+        term_1_transformed = torch.einsum(
+            "...lk,...jli->...kij",cometric_transformed , metric_derivative_at_point[:,-1,:,:][:,None,:,:]
+        )
+
+        term_2_transformed = torch.einsum(
+            "...lk,...lij->...kij", cometric_transformed, metric_derivative_at_point[:,:,:,-1][:,:,:,None]
+        )
+        term_3_transformed = -torch.einsum(
+            "...lk,...ijl->...kij", cometric_transformed, metric_derivative_at_point[:,:,-1,:][:,:,None,:]
+        )
+
+        christoffel_transformed  =  torch.permute((term_1_transformed + term_2_transformed + term_3_transformed)  * numerator * .05, (0,1,3,2))
+
+        
+        ### the above is a tensor of shape (N, 1, 1, 3) where the second index is the  contravariant index
+
+
+        christoffel_transformed_y = christoffel_base[:,:,base_dim:2,base_dim:2] * denominator
+
+
+        final_christoffel_matrix = torch.zeros_like(christoffel_untouched)
+        final_christoffel_matrix[:,:,base_dim:2, base_dim:2] = christoffel_transformed_y[:,:,base_dim:2, base_dim:2]
+        final_christoffel_matrix[:,:,-1,:] = christoffel_transformed[:,:,0,:]
+        final_christoffel_matrix[:,:,:,base_dim:2] = christoffel_transformed[:,:,0,base_dim:2][:,:,None,:]
+
+
+        ### the above is a tensor of shape (N, 1, 3, 3) where the second index is the  contravariant indices, 
+        #### 
+
+        result = torch.cat([christoffel_base, final_christoffel_matrix, christoffel_untouched], dim = 1)
+        
         return result
 
     def geodesic_equation(self, state, _time):
@@ -360,8 +394,7 @@ class GaussianProcessRiemmanianMetricSymmetricSphere(GaussianProcessRiemmanianMe
         position, velocity = state
         gamma = self.christoffels(position)
         base_dim = 0
-        augmented_acceleration = torch.cat([torch.ones_like(position[:,base_dim][:, None]), position[:,base_dim][:, None],torch.ones_like(position[:,base_dim][:, None]) ], axis = -1)
-
+        augmented_acceleration = torch.cat([torch.ones_like(position[:,base_dim][:, None]), position[:,base_dim][:, None], torch.ones_like(position[:,base_dim][:, None])], axis = -1)
         equation = torch.einsum("...kij,...i->...kj", gamma, velocity) 
         equation = -torch.einsum("...kj,...j->...k", equation, velocity) * augmented_acceleration
         return torch.hstack([velocity, equation])

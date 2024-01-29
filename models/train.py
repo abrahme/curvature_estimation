@@ -138,7 +138,6 @@ def train_symmetric_sphere(input_trajectories, initial_conditions: torch.Tensor,
         loss = model.loss(torch.permute(predicted_trajectories, (1,0,2)), input_trajectories.float())
         # Backward pass and optimization
         loss.backward(retain_graph=True)
-        
         optimizer.step()
 
         if val:
