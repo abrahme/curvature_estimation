@@ -1,5 +1,4 @@
 import torch
-# from torchdiffeq import odeint as odeint
 from geomloss.samples_loss import SamplesLoss
 from torchdyn.core import NeuralODE
 from typing import List
