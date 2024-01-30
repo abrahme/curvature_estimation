@@ -1,8 +1,7 @@
 import numpy as np
 import torch
 import torch.nn as nn
-import geomstats._backend as gs
-from geomstats.geometry.riemannian_metric import RiemannianMetric
+import geomstats.backend as gs
 from geomstats.geometry.base import VectorSpace
 from typing import List
 from .hsgp import HSGPExpQuadWithDerivative
@@ -247,6 +246,76 @@ class GaussianProcessRiemmanianMetric(nn.Module):
         equation = torch.einsum("...kij,...i->...kj", gamma, velocity)
         equation = -torch.einsum("...kj,...j->...k", equation, velocity)
         return torch.hstack([velocity, equation])
+    
+    def riemann_tensor(self, base_point):
+        r"""Compute Riemannian tensor at base_point.
+
+        In the literature the Riemannian curvature tensor is noted :math:`R_{ijk}^l`.
+
+        Following tensor index convention (ref. Wikipedia), we have:
+        :math:`R_{ijk}^l = dx^l(R(X_j, X_k)X_i)`
+
+        which gives :math:`R_{ijk}^l` as a sum of four terms:
+
+        .. math::
+            \partial_j \Gamma^l_{ki} - \partial_k \Gamma^l_{ji}
+            + \Gamma^l_{jm} \Gamma^m_{ki} - \Gamma^l_{km} \Gamma^m_{ji}
+
+        Note that geomstats puts the contravariant index on
+        the first dimension of the Christoffel symbols.
+
+        Parameters
+        ----------
+        base_point : array-like, shape=[..., dim]
+            Point on the manifold.
+
+        Returns
+        -------
+        riemann_curvature : array-like, shape=[..., dim, dim, dim, dim]
+            riemann_tensor[...,i,j,k,l] = R_{ijk}^l
+            Riemannian tensor curvature,
+            with the contravariant index on the last dimension.
+        """
+        christoffels = self.christoffels(base_point)
+        jacobian_christoffels = gs.autodiff.jacobian_vec(self.christoffels)(base_point)
+
+        prod_christoffels = torch.einsum(
+            "...ijk,...klm->...ijlm", christoffels, christoffels
+        )
+        riemann_curvature = (
+            torch.einsum("...ijlm->...lmji", jacobian_christoffels)
+            - torch.einsum("...ijlm->...ljmi", jacobian_christoffels)
+            + torch.einsum("...ijlm->...mjli", prod_christoffels)
+            - torch.einsum("...ijlm->...lmji", prod_christoffels)
+        )
+
+        return riemann_curvature
+
+    def ricci_tensor(self, base_point):
+        r"""Compute Ricci curvature tensor at base_point.
+
+        The Ricci curvature tensor :math:`\mathrm{Ric}_{ij}` is defined as:
+        :math:`\mathrm{Ric}_{ij} = R_{ikj}^k`
+        with Einstein notation.
+
+        Parameters
+        ----------
+        base_point :  array-like, shape=[..., dim]
+            Point on the manifold.
+
+        Returns
+        -------
+        ricci_tensor : array-like, shape=[..., dim, dim]
+            ricci_tensor[...,i,j] = Ric_{ij}
+            Ricci tensor curvature.
+        """
+        riemann_tensor = self.riemann_tensor(base_point)
+        ricci_tensor = torch.einsum("...ijkj -> ...ik", riemann_tensor)
+        return ricci_tensor
+    
+    def ricci_scalar(self, base_point):
+        ricc_tensor = self.ricci_tensor(base_point)
+        return torch.trace(ricc_tensor, dim1=-2, dim2=-1)
 
     
 class GaussianProcessRiemmanianMetricSymmetricCircle(GaussianProcessRiemmanianMetric):
@@ -300,6 +369,107 @@ class GaussianProcessRiemmanianMetricSymmetricCircle(GaussianProcessRiemmanianMe
         equation = torch.einsum("...kij,...i->...kj", gamma, velocity) 
         equation = -torch.einsum("...kj,...j->...k", equation, velocity) * augmented_acceleration
         return torch.hstack([velocity, equation])
+
+
+class GaussianProcessRiemmanianMetricSymmetricSphere(GaussianProcessRiemmanianMetric):
+    def __init__(self, dim, gaussian_processes: List[HSGPExpQuadWithDerivative]):
+        super(GaussianProcessRiemmanianMetricSymmetricSphere, self).__init__(dim, gaussian_processes)
+
+    def christoffels(self, base_point):
+        cometric_mat_at_point = self.cometric_matrix(base_point)
+        base_dim = 0 ### dimension to relate to others to 
+        metric_derivative_at_point = self.inner_product_derivative_matrix(base_point)
+
+        denominator = (base_point[:,1]).view(-1,1,1,1) ### modulating factor 
+        numerator =  (base_point[:,base_dim]).view(-1,1,1,1) ### modulating factor 
+
+        cometric_base = cometric_mat_at_point[:,:,base_dim][:,:, None]
+        term_1_base = torch.einsum(
+            "...lk,...jli->...kij",cometric_base , metric_derivative_at_point
+        )
+        term_2_base = torch.einsum(
+            "...lk,...lij->...kij", cometric_base, metric_derivative_at_point
+        )
+        term_3_base = -torch.einsum(
+            "...lk,...ijl->...kij", cometric_base, metric_derivative_at_point
+        )
+
+        christoffel_base = 0.5 * (term_1_base + term_2_base + term_3_base)
+
+        cometric_untouched = cometric_mat_at_point[:,:,-1][:,:, None]
+        term_1_untouched = torch.einsum(
+            "...lk,...jli->...kij",cometric_untouched , metric_derivative_at_point
+        )
+        term_2_untouched = torch.einsum(
+            "...lk,...lij->...kij", cometric_untouched, metric_derivative_at_point
+        )
+        term_3_untouched = -torch.einsum(
+            "...lk,...ijl->...kij", cometric_untouched, metric_derivative_at_point
+        )
+
+        christoffel_untouched = 0.5 * (term_1_untouched + term_2_untouched + term_3_untouched)
+
+        cometric_transformed = cometric_mat_at_point[:,:,1][:,:, None]
+
+        ### ...3,1, ...1,3,3 -> ...1,1,3
+        
+        term_1_transformed = torch.einsum(
+            "...lk,...jli->...kij",cometric_transformed , metric_derivative_at_point[:,-1,:,:][:,None,:,:]
+        )
+
+        term_2_transformed = torch.einsum(
+            "...lk,...lij->...kij", cometric_transformed, metric_derivative_at_point[:,:,:,-1][:,:,:,None]
+        )
+        term_3_transformed = -torch.einsum(
+            "...lk,...ijl->...kij", cometric_transformed, metric_derivative_at_point[:,:,-1,:][:,:,None,:]
+        )
+
+        christoffel_transformed  =  torch.permute((term_1_transformed + term_2_transformed + term_3_transformed)  * numerator * .05, (0,1,3,2))
+
+        
+        ### the above is a tensor of shape (N, 1, 1, 3) where the second index is the  contravariant index
+
+
+        christoffel_transformed_y = christoffel_base[:,:,base_dim:2,base_dim:2] * denominator
+
+
+        final_christoffel_matrix = torch.zeros_like(christoffel_untouched)
+        final_christoffel_matrix[:,:,base_dim:2, base_dim:2] = christoffel_transformed_y[:,:,base_dim:2, base_dim:2]
+        final_christoffel_matrix[:,:,-1,:] = christoffel_transformed[:,:,0,:]
+        final_christoffel_matrix[:,:,:,base_dim:2] = christoffel_transformed[:,:,0,base_dim:2][:,:,None,:]
+
+
+        ### the above is a tensor of shape (N, 1, 3, 3) where the second index is the  contravariant indices, 
+        #### 
+
+        result = torch.cat([christoffel_base, final_christoffel_matrix, christoffel_untouched], dim = 1)
+        
+        return result
+
+    def geodesic_equation(self, state, _time):
+        """Compute the geodesic ODE associated with the connection.
+
+        Parameters
+        ----------
+        state : array-like, shape=[..., dim]
+            Tangent vector at the position.
+        _time : array-like, shape=[..., dim]
+            Point on the manifold, the position at which to compute the
+            geodesic ODE.
+
+        Returns
+        -------
+        geodesic_ode : array-like, shape=[..., dim]
+            Value of the vector field to be integrated at position.
+        """
+        position, velocity = state
+        gamma = self.christoffels(position)
+        base_dim = 0
+        augmented_acceleration = torch.cat([torch.ones_like(position[:,base_dim][:, None]), position[:,base_dim][:, None], torch.ones_like(position[:,base_dim][:, None])], axis = -1)
+        equation = torch.einsum("...kij,...i->...kj", gamma, velocity) 
+        equation = -torch.einsum("...kj,...j->...k", equation, velocity) * augmented_acceleration
+        return torch.hstack([velocity, equation])
+
 
 
 

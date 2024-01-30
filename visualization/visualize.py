@@ -45,6 +45,7 @@ def visualize_convergence(pred_trajectories: np.ndarray, actual_trajectories: np
     
     plt.savefig(f"{fpath}/epoch_{epoch_num}_convergence_data.png")
     plt.clf()
+    plt.close()
 
 def visualize_convergence_sphere(pred_trajectories: np.ndarray, actual_trajectories: np.ndarray, n:int, noise:int,  epoch_num: int, hemisphere:bool = False,penalty: float = 0,  prior:bool = False, val:bool = False):
     ax = plt.figure().add_subplot(projection='3d')
@@ -55,11 +56,10 @@ def visualize_convergence_sphere(pred_trajectories: np.ndarray, actual_trajector
     theta = np.linspace(0, 2 * np.pi, 10)
     phi = np.linspace(0, 2*np.pi, 10)
 
-    u, v = np.meshgrid([theta, phi])
+    u, v = np.meshgrid(theta, phi)
     x = np.cos(u)*np.sin(v)
     y = np.sin(u)*np.sin(v)
     z = np.cos(v)
-    # draw sphere
 
     ax.plot_wireframe(x, y, z, color="green", label = "sphere", linestyle="dashed")
 
@@ -90,6 +90,7 @@ def visualize_convergence_sphere(pred_trajectories: np.ndarray, actual_trajector
     ax.legend()
     plt.savefig(f"{directory_path}/epoch_{epoch_num}_convergence_data.png")
     plt.clf()
+    plt.close()
 
 
 
@@ -124,6 +125,7 @@ def visualize_circle_metric(model: RiemannianAutoencoder, basis: np.ndarray, n:i
     plt.savefig(f"{fpath}/metric.png")
     # Show the plot
     plt.clf()
+    plt.close()
 
 
 
