@@ -1,6 +1,7 @@
 import numpy as np
 import torch
 import torch.nn as nn
+import geomstats.backend as gs
 from geomstats.geometry.base import VectorSpace
 from typing import List
 from .hsgp import HSGPExpQuadWithDerivative
@@ -245,6 +246,76 @@ class GaussianProcessRiemmanianMetric(nn.Module):
         equation = torch.einsum("...kij,...i->...kj", gamma, velocity)
         equation = -torch.einsum("...kj,...j->...k", equation, velocity)
         return torch.hstack([velocity, equation])
+    
+    def riemann_tensor(self, base_point):
+        r"""Compute Riemannian tensor at base_point.
+
+        In the literature the Riemannian curvature tensor is noted :math:`R_{ijk}^l`.
+
+        Following tensor index convention (ref. Wikipedia), we have:
+        :math:`R_{ijk}^l = dx^l(R(X_j, X_k)X_i)`
+
+        which gives :math:`R_{ijk}^l` as a sum of four terms:
+
+        .. math::
+            \partial_j \Gamma^l_{ki} - \partial_k \Gamma^l_{ji}
+            + \Gamma^l_{jm} \Gamma^m_{ki} - \Gamma^l_{km} \Gamma^m_{ji}
+
+        Note that geomstats puts the contravariant index on
+        the first dimension of the Christoffel symbols.
+
+        Parameters
+        ----------
+        base_point : array-like, shape=[..., dim]
+            Point on the manifold.
+
+        Returns
+        -------
+        riemann_curvature : array-like, shape=[..., dim, dim, dim, dim]
+            riemann_tensor[...,i,j,k,l] = R_{ijk}^l
+            Riemannian tensor curvature,
+            with the contravariant index on the last dimension.
+        """
+        christoffels = self.christoffels(base_point)
+        jacobian_christoffels = gs.autodiff.jacobian_vec(self.christoffels)(base_point)
+
+        prod_christoffels = torch.einsum(
+            "...ijk,...klm->...ijlm", christoffels, christoffels
+        )
+        riemann_curvature = (
+            torch.einsum("...ijlm->...lmji", jacobian_christoffels)
+            - torch.einsum("...ijlm->...ljmi", jacobian_christoffels)
+            + torch.einsum("...ijlm->...mjli", prod_christoffels)
+            - torch.einsum("...ijlm->...lmji", prod_christoffels)
+        )
+
+        return riemann_curvature
+
+    def ricci_tensor(self, base_point):
+        r"""Compute Ricci curvature tensor at base_point.
+
+        The Ricci curvature tensor :math:`\mathrm{Ric}_{ij}` is defined as:
+        :math:`\mathrm{Ric}_{ij} = R_{ikj}^k`
+        with Einstein notation.
+
+        Parameters
+        ----------
+        base_point :  array-like, shape=[..., dim]
+            Point on the manifold.
+
+        Returns
+        -------
+        ricci_tensor : array-like, shape=[..., dim, dim]
+            ricci_tensor[...,i,j] = Ric_{ij}
+            Ricci tensor curvature.
+        """
+        riemann_tensor = self.riemann_tensor(base_point)
+        ricci_tensor = torch.einsum("...ijkj -> ...ik", riemann_tensor)
+        return ricci_tensor
+    
+    def ricci_scalar(self, base_point):
+        ricc_tensor = self.ricci_tensor(base_point)
+        return torch.trace(ricc_tensor, dim1=-2, dim2=-1)
 
     
 class GaussianProcessRiemmanianMetricSymmetricCircle(GaussianProcessRiemmanianMetric):
