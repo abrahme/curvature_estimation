@@ -108,14 +108,15 @@ class RiemannianAutoencoder(nn.Module):
 
 class RiemannianAutoencoderBatch(RiemannianAutoencoder):
 
-    def __init__(self, n: int,t: List[torch.Tensor],  m: List[int], c: float, regularization: float, basis, active_dims: List, loss_type: str = "L2"):
+    def __init__(self, n: int,t: List[torch.Tensor],  m: List[int], c: float, regularization: float, basis, active_dims: List, loss_type: str = "L2", t_val: List = None):
         super(RiemannianAutoencoderBatch, self).__init__(n = n, t = t, m = m,c = c, regularization= regularization, basis=basis,loss_type=loss_type, active_dims=active_dims )
+        self.t_val = t_val
         
 
 
-    def forward(self,initial_conditions, epoch: int = 0):
+    def forward(self,initial_conditions, epoch: int = 0, val = False):
         split_size = self.n
-        time_steps = self.t[epoch]
+        time_steps = self.t[epoch] if not val else self.t_val[epoch]
         predicted_vals = self.ode_layer( initial_conditions, time_steps)
 
         return predicted_vals[:,:,0:split_size]

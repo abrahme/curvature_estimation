@@ -157,34 +157,35 @@ def train_symmetric_sphere(input_trajectories, initial_conditions: torch.Tensor,
 
 
 def train_batch(input_trajectories: List[torch.Tensor], initial_conditions: torch.Tensor, epochs,regularizer:float, n, t, m:List[int], c:float, basis, active_dims: List, return_preds:bool = False, val: bool = False, loss_type:str = "L2", val_input_trajectories: torch.Tensor = None, 
-          val_initial_conditions:Tuple[torch.Tensor, torch.Tensor] = None):
+          val_initial_conditions:Tuple[torch.Tensor, torch.Tensor] = None, t_val:List = None):
     dataset_size = len(input_trajectories)
-    model = RiemannianAutoencoderBatch(n =n, t = t,m = m,c = c,regularization=regularizer, basis = basis, active_dims = active_dims, loss_type =loss_type)
-    optimizer = optim.Adam(model.parameters(), lr=0.01)
+    test_dataset_size = len(val_input_trajectories)
+    model = RiemannianAutoencoderBatch(n =n, t = t,m = m,c = c,regularization=regularizer, basis = basis, active_dims = active_dims, loss_type =loss_type, t_val=t_val)
+    optimizer = optim.Adam(model.parameters(), lr=0.001)
     preds = []  
     for epoch in range(epochs):
-        optimizer.zero_grad()
-        loss = torch.Tensor([0.0])
+
+        # loss = torch.Tensor([0.0])
         for element in range(dataset_size):
         # Forward pass
-            predicted_trajectories = model.forward(initial_conditions[element,:][None,:], epoch = element)
-            loss += model.loss(torch.permute(predicted_trajectories, (1,0,2)), input_trajectories[element][None:,:].float())
-        loss /= dataset_size
-        # Backward pass and optimization
-        loss.backward(retain_graph=True)
-        
-        optimizer.step()
-        print("stepped")
+            optimizer.zero_grad()
+            predicted_trajectories = model.forward(initial_conditions[element,:][None,:], epoch = element, val = False)
+            loss = model.loss(torch.permute(predicted_trajectories, (1,0,2)), input_trajectories[element].float(), val = False)
+            # Backward pass and optimization
+            loss.backward(retain_graph=True)
+            optimizer.step()
         if val:
             model.eval()
             with torch.no_grad():
-                predicted_val_trajectories = model.forward(val_initial_conditions)
-                val_loss = model.loss(torch.permute(predicted_val_trajectories.float().detach(), (1,0,2)), val_input_trajectories.float(), val = True)
+                val_loss = torch.Tensor([0.0])
+                for element in range(test_dataset_size):
+                    predicted_val_trajectories = model.forward(val_initial_conditions[element,:][None,:], epoch = element, val = True)
+                    val_loss += (1/test_dataset_size)*model.loss(torch.permute(predicted_val_trajectories.float().detach(), (1,0,2)), val_input_trajectories[element].float(), val = True)
         else:
             val_loss = None
         if return_preds:
             with torch.no_grad():
-                preds.append([torch.permute(model.forward(initial_conditions[i,:][None, :], i).detach(), (1,0,2)) for i in range(dataset_size)])
+                preds.append([torch.permute(model.forward(val_initial_conditions[i,:][None, :], i, val = True).detach(), (1,0,2)) for i in range(test_dataset_size)])
 
         print(f"Epoch: {epoch + 1}, Loss: {loss.item()}, Val Loss: {val_loss.item() if val else val_loss}")
 

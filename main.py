@@ -9,6 +9,7 @@ from models.train import train, train_symmetric_circle, train_symmetric_sphere, 
 from geomstats.geometry.hypersphere import Hypersphere
 from data.toy_examples import create_geodesic_pairs_circle, create_geodesic_pairs_circle_hemisphere, create_geodesic_pairs_sphere, create_geodesic_pairs_sphere_hemisphere
 from visualization.visualize import  visualize_convergence, visualize_convergence_sphere, visualize_curvature
+from sklearn.model_selection import train_test_split
 
 
 
@@ -520,25 +521,44 @@ def train_whale(data: pd.DataFrame, keep_preds:bool = False, val:bool = False, l
     n_dims = len(active_dims)
 
     torch.set_default_dtype(torch.float32)
-    timesteps = data_clean.groupby("tag-local-identifier").apply(lambda x: x["total_time"].to_numpy()).reset_index()[0].to_list()
-    trajectory_raw = data_clean.groupby("tag-local-identifier").apply(lambda x: x[["x","y","z"]].to_numpy()).reset_index()[0]
+    data_clean = data_clean.groupby("tag-local-identifier").filter(lambda x: len(x) > 20)
+    train_data_whales, test_data_whales =  train_test_split(np.random.choice(pd.unique(data_clean["tag-local-identifier"]), 10))
+    print(len(train_data_whales), len(test_data_whales))
+    data_train = data_clean[data["tag-local-identifier"].isin(train_data_whales)]
+    data_test = data_clean[data["tag-local-identifier"].isin(test_data_whales)]
 
-    trajectories = [torch.from_numpy(item).to(torch.float32) for item in trajectory_raw]
-    start_points = torch.from_numpy(np.stack([item[0,:] for item in trajectory_raw], axis = 0)).to(torch.float32)
+    timesteps_train = data_train.groupby("tag-local-identifier").apply(lambda x: x["total_time"].to_numpy()).reset_index()[0].to_list()
+    trajectory_raw_train = data_train.groupby("tag-local-identifier").apply(lambda x: x[["x","y","z"]].to_numpy()).reset_index()[0]
 
-    start_velo = torch.from_numpy(np.stack([np.gradient(traj,time, edge_order = 1, axis = 0)[0,:] for traj, time  in zip(trajectory_raw, timesteps)], axis = 0)).to(torch.float32)
+    trajectories_train = [torch.from_numpy(item).to(torch.float32) for item in trajectory_raw_train]
+    start_points_train = torch.from_numpy(np.stack([item[0,:] for item in trajectory_raw_train], axis = 0)).to(torch.float32)
+
+    start_velo_train = torch.from_numpy(np.stack([np.gradient(traj,time, edge_order = 1, axis = 0)[0,:] for traj, time  in zip(trajectory_raw_train, timesteps_train)], axis = 0)).to(torch.float32)
 
 
-    sample_basis = torch.from_numpy(data[["x","y","z"]].to_numpy()).to(torch.float32) ### only construct basis from whatever points we have 
+    sample_basis_train = torch.from_numpy(data_train[["x","y","z"]].to_numpy()).to(torch.float32) ### only construct basis from whatever points we have 
 
-    initial_conditions = torch.hstack((start_points, start_velo))
+    initial_conditions_train = torch.hstack((start_points_train, start_velo_train))
 
-    # visualize_training_data_sphere(sample_basis, num_samps)
+    timesteps_test = data_test.groupby("tag-local-identifier").apply(lambda x: x["total_time"].to_numpy()).reset_index()[0].to_list()
+    trajectory_raw_test = data_test.groupby("tag-local-identifier").apply(lambda x: x[["x","y","z"]].to_numpy()).reset_index()[0]
+
+    trajectories_test = [torch.from_numpy(item).to(torch.float32) for item in trajectory_raw_test]
+    start_points_test = torch.from_numpy(np.stack([item[0,:] for item in trajectory_raw_test], axis = 0)).to(torch.float32)
+
+    start_velo_test = torch.from_numpy(np.stack([np.gradient(traj,time, edge_order = 1, axis = 0)[0,:] for traj, time  in zip(trajectory_raw_test, timesteps_test)], axis = 0)).to(torch.float32)
+
+
+    sample_basis_test = torch.from_numpy(data_test[["x","y","z"]].to_numpy()).to(torch.float32) ### only construct basis from whatever points we have 
+
+    initial_conditions_test = torch.hstack((start_points_test, start_velo_test))
 
     print("Training whales")
-    model, preds = train_batch(trajectories, initial_conditions, epochs = 1,  n = n_dims,
-                    t = [torch.from_numpy(timestep).to(torch.float32) for timestep in timesteps],  
-                    return_preds=keep_preds, val=val, loss_type = loss_type, basis=sample_basis, c=c, m=m,active_dims=active_dims, regularizer=0)
+    model, preds = train_batch(trajectories_train, initial_conditions_train, epochs = 1,  n = n_dims,
+                    t = [torch.from_numpy(timestep).to(torch.float32) for timestep in timesteps_train],  
+                    t_val = [torch.from_numpy(timestep).to(torch.float32) for timestep in timesteps_test],
+                    val_initial_conditions=initial_conditions_test, val_input_trajectories=trajectories_test,
+                    return_preds=keep_preds, val=True, loss_type = loss_type, basis=sample_basis_train, c=c, m=m,active_dims=active_dims, regularizer=0)
     
     ricci_curvature = model.metric_space.ricci_scalar(manifold_basis)
     visualize_curvature(ricci_curvature[:,None].detach().numpy(), manifold_basis[:,0], manifold_basis[:,1], manifold_basis[:, 2] )
