@@ -7,7 +7,7 @@ from typing import List
 from models.train import train, train_symmetric_circle, train_symmetric_sphere
 from geomstats.geometry.hypersphere import Hypersphere
 from data.toy_examples import create_geodesic_pairs_circle, create_geodesic_pairs_circle_hemisphere, create_geodesic_pairs_sphere, create_geodesic_pairs_sphere_hemisphere
-from visualization.visualize import  visualize_convergence, visualize_convergence_sphere
+from visualization.visualize import  visualize_convergence, visualize_convergence_sphere, visualize_curvature
 
 
 
@@ -305,6 +305,47 @@ def sphere_metric_hemisphere_with_n(sample_sizes: List[int], noise_level: List[f
 
 
 
+def football_sphere_metric(data: pd.DataFrame, keep_preds:bool = False, loss_type:str = "L2", penalty:float = 0, prior:bool = False, timesteps:int = 20):
+    torch.set_default_dtype(torch.float32)
+    m = [5,5]
+    c = 4.0
+    
+    active_dims = [0,1]
+    n_dims = len(active_dims)
+    filtered_data = data.groupby(["nflId_pr","playId"]).filter(lambda x: len(x)/10 > timesteps/10)
+    trajectories = torch.from_numpy(np.stack(filtered_data.groupby(["nflId_pr","playId"]).apply(lambda x: x.head(timesteps)[["x_smooth_pr_std","y_smooth_pr_std"]].to_numpy()).reset_index()[0], axis = 0)).to(torch.float32)
+
+    start_points = trajectories[:,0,:]
+    sample_basis = torch.reshape(trajectories,(-1, n_dims)) ### only construct basis from whatever points we have 
+    x_max, x_min = torch.max(sample_basis[:,0]), torch.min(sample_basis[:,0])
+    y_max, y_min = torch.max(sample_basis[:,1]), torch.min(sample_basis[:,1])
+    xi, yi = torch.meshgrid(torch.linspace(x_min, x_max,50), torch.linspace(y_min,y_max,50))
+    manifold_basis = torch.stack([xi.flatten(), yi.flatten(),], axis = -1).to(torch.float32)
+    start_velo = (start_points - trajectories[:,1,:])/2
+    
+
+    initial_conditions = torch.hstack((start_points, start_velo))
+    # visualize_training_data_sphere(sample_basis, num_samps)
+    
+    if prior:
+        if penalty > 0:
+            print("Training normal metric with prior")
+            model, preds = train(trajectories, initial_conditions, epochs = 100, regularizer=penalty, n = n_dims,
+                        t = timesteps, m = m, c = c, 
+                    basis = sample_basis.to(torch.float32), active_dims = active_dims, return_preds=keep_preds, val=False, loss_type = loss_type)
+        elif penalty == 0:
+            print("Training symmetric metric")
+            model, preds = train_symmetric_circle(trajectories, initial_conditions, epochs = 100, n = n_dims,
+                        t = timesteps, m = m, c = c, 
+                    basis = sample_basis.to(torch.float32), active_dims = active_dims, return_preds=keep_preds, val=False, loss_type = loss_type)
+    else:
+        print("Training normal metric without prior")
+        model, preds = train(trajectories, initial_conditions, epochs = 100, regularizer=penalty, n = n_dims,
+                        t = timesteps, m = m, c = c, 
+                    basis = sample_basis.to(torch.float32), active_dims = active_dims, return_preds=keep_preds, val=False, loss_type = loss_type)
+    
+    ricci_curvature = model.metric_space.ricci_scalar(manifold_basis)
+    visualize_curvature(ricci_curvature[:,None].detach().numpy(), manifold_basis[:,0], manifold_basis[:,1] )
 
 
 
@@ -313,7 +354,7 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(description="Arguments for fitting manifold estimation model")
     # Add command-line arguments
-    parser.add_argument("--manifold", type = str, help = "which type of manifold", default = "sphere")
+    parser.add_argument("--manifold", type = str, help = "which type of data", default = "sphere")
     parser.add_argument("--loss", type = str, help="which type of loss", default = "L2")
     parser.add_argument('--noise',type=lambda x: [float(item) for item in x.split(",")], help='noise to jitter generated geodesics')
     parser.add_argument('--penalty',type=float, help='how much to penalize prior', default = 0.0)
@@ -337,6 +378,9 @@ if __name__ == "__main__":
             sphere_metric_hemisphere_with_n(sample_sizes = args.sample_sizes, noise_level = args.noise, penalty = args.penalty, keep_preds=args.keep_preds, timesteps=args.timesteps, loss_type=args.loss, prior = args.prior)
         else:
             sphere_metric_with_n(sample_sizes = args.sample_sizes, noise_level = args.noise, penalty = args.penalty, keep_preds=args.keep_preds, timesteps=args.timesteps, loss_type=args.loss, prior = args.prior)
+    elif args.manifold == "football":
+        football_sphere_metric(data = pd.read_csv("data/nfl_data/sample_data.csv"), keep_preds = args.keep_preds, penalty = args.penalty, prior = args.prior, timesteps = args.timesteps)
+
 
 
 

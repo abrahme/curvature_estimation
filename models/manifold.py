@@ -1,5 +1,7 @@
 import numpy as np
 import torch
+from torch.autograd.functional import jacobian as _torch_jacobian
+from torch.func import jacrev , jacfwd, vmap
 import torch.nn as nn
 import geomstats.backend as gs
 from geomstats.geometry.base import VectorSpace
@@ -13,6 +15,51 @@ class MyBVPSolver(_LogShootingSolverFlatten):
         super().__init__(optimizer, initialization)
         self.optimizer = ScipyMinimize()
 
+
+
+def jacobian_vec(func, point_ndim=1):
+    """Return a function that returns the jacobian of func.
+
+    We note that the jacobian function of torch is not vectorized
+    by default, thus we modify its behavior here.
+
+    Default pytorch behavior:
+
+    If the jacobian for one point of shape (2,) is of shape (3, 2),
+    then calling the jacobian on 4 points with shape (4, 2) will
+    be of shape (3, 2, 4, 2).
+
+    Modified behavior:
+
+    Calling the jacobian on 4 points gives a tensor of shape (4, 3, 2).
+
+    We use a for-loop to allow this function to be vectorized with
+    respect to several inputs in point, because the flag vectorize=True
+    fails.
+
+    Parameters
+    ----------
+    func : callable
+        Function whose jacobian is computed.
+
+    Returns
+    -------
+    _ : callable
+        Function taking point as input and returning
+        the jacobian of func at point.
+    """
+    def _jacobian(point):
+        if point.ndim == point_ndim:
+            return _torch_jacobian(func=lambda x: func(x), inputs=point)
+        return torch.stack(
+            [
+                _torch_jacobian(func=lambda x: func(x), inputs=one_point)
+                for one_point in point
+            ],
+            axis=0,
+        )
+
+    return _jacobian
 
 
 
@@ -29,7 +76,7 @@ def vector_to_lower_triangular(vector, dim_size: int):
     """
     array = torch.zeros(dim_size, dim_size)
     indices = torch.tril_indices(row = dim_size, col = dim_size, offset = 0)
-    array[indices.tolist()] = vector
+    array[indices[0,:], indices[1,:]] = vector
     return array
 
 def make_diagonal_positive(array):
@@ -105,14 +152,23 @@ class GaussianProcessRiemmanianMetric(nn.Module):
         
 
     def _make_chol(self,array):
+        if array.ndim == 1:
+            array = array[None,:]
         return torch.stack([make_diagonal_positive(vector_to_lower_triangular(array[i,:], self.dimension)) for i in range(array.shape[0])], axis = 0)
     
     def _construct_gp_evaluation(self, base_point):
-        return torch.stack([gp.predict(base_point) 
-                         for gp in self.gaussian_processes], axis = 0).T
+        if base_point.ndim == 1:
+            base_point = base_point[None,:]
+        intermediate_result = torch.stack([gp.predict(base_point) 
+                         for gp in self.gaussian_processes], axis = 0)
+        if intermediate_result.ndim == 1:
+            intermediate_result = intermediate_result[:, None]
+        return torch.permute(intermediate_result, (1,0))
     
     def metric_matrix(self, base_point=None):
         ### note that this returns a N x k matrix for k gps
+        if base_point.ndim == 1:
+            base_point = base_point[None,:]
         gp_evaluation = self._construct_gp_evaluation(base_point)
         gp_eval_chol = self._make_chol(gp_evaluation)
 
@@ -146,10 +202,15 @@ class GaussianProcessRiemmanianMetric(nn.Module):
             but maybe we have to because we don't wantto hand write derivatives 
         """
         n_dims = self.dimension 
+        if base_point.ndim == 1:
+            base_point = base_point[None,:]
         gp_derivative_evaluation = torch.stack(
             [torch.stack([gp.predict(base_point,deriv_dim = i) for gp in self.gaussian_processes],
                       axis = 0).T for i in range(n_dims)], 
                       axis = -1) ### N x dim*(dim+1)/2 x n_dims tensor
+        
+        if gp_derivative_evaluation.ndim == 2:
+            gp_derivative_evaluation = gp_derivative_evaluation[None,:,:]
 
         gp_derivative_evaluation_lower_tri = torch.stack([torch.stack([vector_to_lower_triangular(gp_derivative_evaluation[i,:,j], n_dims) for i in range(gp_derivative_evaluation.shape[0])], axis = 0) 
                                                        for j in range(n_dims)], axis = -1)  ### N x n_dim x n_dim x n_dim (last dim is partial deriv)
@@ -175,7 +236,8 @@ class GaussianProcessRiemmanianMetric(nn.Module):
         return partials
 
     def cometric_matrix(self, base_point=None):
-        
+        if base_point.ndim == 1:
+            base_point = base_point[None,:]
         gp_evaluation = self._construct_gp_evaluation(base_point)
         gp_eval_chol = self._make_chol(gp_evaluation)
         batch_size = gp_evaluation.shape[0]
@@ -209,6 +271,8 @@ class GaussianProcessRiemmanianMetric(nn.Module):
         christoffels: array-like, shape=[..., dim, dim, dim]
             Christoffel symbols, where the contravariant index is first.
         """
+        if base_point.ndim == 1:
+            base_point = base_point[None,:]
         cometric_mat_at_point = self.cometric_matrix(base_point)
         metric_derivative_at_point = self.inner_product_derivative_matrix(base_point)
 
@@ -276,9 +340,11 @@ class GaussianProcessRiemmanianMetric(nn.Module):
             Riemannian tensor curvature,
             with the contravariant index on the last dimension.
         """
+        if base_point.ndim == 1:
+            base_point = base_point[None,:]
         christoffels = self.christoffels(base_point)
-        jacobian_christoffels = gs.autodiff.jacobian_vec(self.christoffels)(base_point)
 
+        jacobian_christoffels = torch.squeeze(jacobian_vec(self.christoffels)(base_point))
         prod_christoffels = torch.einsum(
             "...ijk,...klm->...ijlm", christoffels, christoffels
         )
@@ -309,13 +375,17 @@ class GaussianProcessRiemmanianMetric(nn.Module):
             ricci_tensor[...,i,j] = Ric_{ij}
             Ricci tensor curvature.
         """
-        riemann_tensor = self.riemann_tensor(base_point)
+        if base_point.ndim == 1:
+            base_point = base_point[None,:]
+        riemann_tensor = torch.squeeze(self.riemann_tensor(base_point))
         ricci_tensor = torch.einsum("...ijkj -> ...ik", riemann_tensor)
         return ricci_tensor
     
     def ricci_scalar(self, base_point):
-        ricc_tensor = self.ricci_tensor(base_point)
-        return torch.trace(ricc_tensor, dim1=-2, dim2=-1)
+        if base_point.ndim == 1:
+            base_point = base_point[None,:]
+        ricci_tensor = self.ricci_tensor(base_point)
+        return vmap(torch.trace)(ricci_tensor)
 
     
 class GaussianProcessRiemmanianMetricSymmetricCircle(GaussianProcessRiemmanianMetric):

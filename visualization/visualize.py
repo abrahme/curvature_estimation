@@ -145,3 +145,21 @@ def visualize_loss(loss_1: np.ndarray, loss_2: np.ndarray, n: List[int]):
     plt.show()
 
 
+def visualize_curvature(ricci_curvature_scalar: np.ndarray, x: np.ndarray, y:np.ndarray):
+    fig = plt.figure()
+    ax = fig.add_subplot(111, projection='3d')
+
+    # Plot the surface
+    surf = ax.plot_surface(x, y, ricci_curvature_scalar, cmap='viridis')
+
+    # Add colorbar
+    fig.colorbar(surf)
+
+    # Customize labels
+    ax.set_xlabel('X-axis')
+    ax.set_ylabel('Y-axis')
+    ax.set_zlabel('Z-axis')
+    ax.set_title('3D Surface Plot')
+
+    # Show the plot
+    plt.show()

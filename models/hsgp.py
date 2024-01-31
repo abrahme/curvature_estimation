@@ -28,6 +28,8 @@ def calc_eigenvectors(
     """Calculate eigenvectors of the Laplacian. These are used as basis vectors in the HSGP
     approximation.
     """
+    if Xs.ndim == 1:
+        Xs = Xs[None,:]
     m_star = int(np.prod(m))
     phi = torch.ones((Xs.shape[0], m_star))
     for d in range(len(m)):
@@ -47,6 +49,8 @@ def calc_eigenvectors_deriv(
     """Calculate eigenvectors of the Laplacian. These are used as basis vectors in the HSGP
     approximation.
     """
+    if Xs.ndim == 1:
+        Xs = Xs[None,:]
     m_star = int(np.prod(m))
     phi = torch.ones((Xs.shape[0], m_star))
     for d in range(len(m)):
@@ -82,9 +86,6 @@ class HSGPExpQuadWithDerivative(nn.Module):
 
     
     def _slice(self, X, Xs=None):
-        X = X[:, self.active_dims]
-        if Xs is not None:
-            Xs = Xs[:, self.active_dims]
         return X, Xs
     
     def prior_linearized(self, Xs):
