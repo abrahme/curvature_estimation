@@ -5,25 +5,24 @@ import torch
 from torch.nn import MSELoss
 import pandas as pd
 from typing import List
-from models.train import train, train_symmetric_circle, train_symmetric_sphere
+from models.train import train, train_symmetric_circle, train_symmetric_sphere, train_batch, train_vanilla_autoencoder
 from geomstats.geometry.hypersphere import Hypersphere
 from data.toy_examples import create_geodesic_pairs_circle, create_geodesic_pairs_circle_hemisphere, create_geodesic_pairs_sphere, create_geodesic_pairs_sphere_hemisphere
 from visualization.visualize import  visualize_convergence, visualize_convergence_sphere, visualize_curvature
 
 
 
-
-def plot_convergence(preds: List[np.ndarray], actual: np.ndarray, skip_every: int, n:int, penalty: float = 0, val: bool = False, noise: int = 0, hemisphere:bool = False, prior:bool = False):
+def plot_convergence(preds: List[np.ndarray], actual: np.ndarray, skip_every: int, n:int, penalty: float = 0, val: bool = False, noise: int = 0, hemisphere:bool = False, prior:bool = False, autoencoder:bool = False):
     num_epochs = len(preds)
     indices = range(0, num_epochs, skip_every)
     for index in indices:
-        visualize_convergence(torch.reshape(preds[index],(-1, 2)), actual,epoch_num=index,n=n, penalty=penalty, val = val, noise=noise, hemisphere=hemisphere, prior = prior)
+        visualize_convergence(torch.reshape(preds[index],(-1, 2)), actual,epoch_num=index,n=n, penalty=penalty, val = val, noise=noise, hemisphere=hemisphere, prior = prior, autoencoder=autoencoder)
 
-def plot_convergence_sphere(preds: List[np.ndarray], actual: np.ndarray, skip_every: int, n:int, penalty: float = 0, val: bool = False, hemisphere:bool = False, prior:bool = False, noise: int = 0):
+def plot_convergence_sphere(preds: List[np.ndarray], actual: np.ndarray, skip_every: int, n:int, penalty: float = 0, val: bool = False, hemisphere:bool = False, prior:bool = False, noise: int = 0, autoencoder:bool = False):
     num_epochs = len(preds)
     indices = range(0, num_epochs, skip_every)
     for index in indices:
-        visualize_convergence_sphere(torch.reshape(preds[index],(-1, 3)), actual,epoch_num=index,n=n, penalty=penalty, val = val, prior = prior, hemisphere = hemisphere, noise=noise)
+        visualize_convergence_sphere(torch.reshape(preds[index],(-1, 3)), actual,epoch_num=index,n=n, penalty=penalty, val = val, prior = prior, hemisphere = hemisphere, noise=noise, autoencoder= autoencoder)
 
 def circle_metric_hemisphere_with_n(sample_sizes: List[int], noise_level: List[float], timesteps:int, keep_preds:bool = False, val:bool = True, loss_type:str = "L2",penalty: float = 0,  prior:bool = False):
     m = [5,5]
@@ -199,7 +198,7 @@ def sphere_metric_with_n(sample_sizes: List[int], noise_level: List[float], time
                             basis = manifold_basis.to(torch.float32), active_dims = active_dims, return_preds=keep_preds, val=val, loss_type = loss_type)
             else:
                 print("Training normal metric without prior")
-                model, preds = train(trajectories, initial_conditions, epochs = 100, regularizer=penalty, n = n_dims,
+                model, preds = train(trajectories, initial_conditions, epochs = 200, regularizer=penalty, n = n_dims,
                                 t = timesteps, m = m, c = c, val_initial_conditions=val_initial_conditions, val_input_trajectories=val_trajectories_clean,
                             basis = manifold_basis.to(torch.float32), active_dims = active_dims, return_preds=keep_preds, val=val, loss_type = loss_type)
             
@@ -305,48 +304,247 @@ def sphere_metric_hemisphere_with_n(sample_sizes: List[int], noise_level: List[f
         pd.DataFrame(losses).to_csv(f"{directory_path}/losses.csv", index=False)
 
 
+def sphere_autoencoder_with_n(sample_sizes: List[int], noise_level: List[float], timesteps:int, keep_preds:bool = False, val:bool = True, loss_type:str = "L2", penalty: float = 0, prior:bool = False):
+    losses = []
+    n_dims = 3
+    latent_space = Hypersphere(dim = 2, equip=True)
+    for noise in noise_level:
+        for num_samps in sample_sizes:
+            torch.set_default_dtype(torch.float32)
+            trajectories, start_points, start_velo, val_trajectories, val_start_points, val_start_velo  = create_geodesic_pairs_sphere(num_samps, timesteps, noise = 1/noise)
+            _, _, _, val_trajectories_clean, _, _  = create_geodesic_pairs_sphere(num_samps, timesteps, noise = 0)
+            sample_basis = torch.reshape(trajectories,(-1, n_dims)) ### only construct basis from whatever points we have 
+            val_sample_basis = torch.reshape(val_trajectories,(-1, n_dims))
+            initial_conditions = torch.hstack((start_points, start_velo))
+            val_initial_conditions = torch.hstack((val_start_points, val_start_velo))
+            # visualize_training_data_sphere(sample_basis, num_samps)
+        
+            print("Training autoencoder")
+            model, preds = train_vanilla_autoencoder(trajectories, initial_conditions, epochs = 100,  n = n_dims,
+                            t = timesteps, val_initial_conditions=val_initial_conditions, val_input_trajectories=val_trajectories_clean, return_preds=keep_preds, val=val, loss_type = loss_type)
+            
+            with torch.no_grad():
+                val_generated_trajectories = model.forward(val_initial_conditions)
+                val_predicted_trajectories = torch.permute(val_generated_trajectories, (1,0,2))
+                # plot_convergence_sphere([torch.reshape(val_predicted_trajectories, (-1, n_dims))], val_sample_basis,n = num_samps, penalty = penalty, skip_every = 30, val = True, prior = prior, hemisphere=False, noise = noise)
 
-def football_sphere_metric(data: pd.DataFrame, keep_preds:bool = False, loss_type:str = "L2", penalty:float = 0, prior:bool = False, timesteps:int = 20):
-    torch.set_default_dtype(torch.float32)
-    m = [5,5]
+                val_geodesic_distance = latent_space.metric.dist(latent_space.projection(torch.reshape(val_predicted_trajectories, (-1, n_dims))), val_sample_basis).sum()/num_samps
+                losses.append({"loss_val":val_geodesic_distance.item(), "n": num_samps, "noise": 1/noise, "loss_type": "geodesic"})
+                losses.append({"loss_val": MSELoss()(val_predicted_trajectories, val_trajectories).item(),
+                                "n": num_samps, "noise": 1/noise, "loss_type": "model"}) 
+                losses.append({"loss_val": MSELoss()(val_predicted_trajectories , val_trajectories_clean).item(),
+                              "n": num_samps, "noise": 1/noise, "loss_type": "model_clean"}) 
+            # if keep_preds:
+            #     plot_convergence_sphere(preds, sample_basis, skip_every=30, n = num_samps, penalty = penalty, prior = prior, hemisphere=False, val=False, noise = noise )
+    
+        prior_path = "autoencoder"
+        
+        directory_path = Path(f"data/losses/normal/sphere/{prior_path}")
+
+        # Check if the directory exists
+        if not directory_path.exists():
+            # Create the directory
+            directory_path.mkdir(parents=True, exist_ok=True)
+            print(f"Directory '{directory_path}' created.")
+        else:
+            print(f"Directory '{directory_path}' already exists.")
+        pd.DataFrame(losses).to_csv(f"{directory_path}/losses.csv", index=False)
+
+
+def sphere_autoencoder_hemisphere_with_n(sample_sizes: List[int], noise_level: List[float], timesteps:int, keep_preds:bool = False, val:bool = True, loss_type:str = "L2", penalty: float = 0, prior:bool = False):
+    losses = []
+    n_dims = 3
+    latent_space = Hypersphere(dim = 2, equip=True)
+    for noise in noise_level:
+        for num_samps in sample_sizes:
+            torch.set_default_dtype(torch.float32)
+            trajectories, start_points, start_velo, val_trajectories, val_start_points, val_start_velo = create_geodesic_pairs_sphere_hemisphere(num_samps, timesteps, noise = 1/noise)
+            _, _, _, val_trajectories_clean, _, _,  = create_geodesic_pairs_sphere_hemisphere(num_samps, timesteps, noise = 0)
+            val_sample_basis = torch.reshape(val_trajectories,(-1, n_dims))
+            initial_conditions = torch.hstack((start_points, start_velo))
+            val_initial_conditions = torch.hstack((val_start_points, val_start_velo))
+        
+            print("Training autoencoder")
+            model, preds = train_vanilla_autoencoder(trajectories, initial_conditions, epochs = 100,  n = n_dims,
+                            t = timesteps, val_initial_conditions=val_initial_conditions, val_input_trajectories=val_trajectories, return_preds=keep_preds, val=val, loss_type = loss_type)
+            
+            with torch.no_grad():
+                val_generated_trajectories = model.forward(val_initial_conditions)
+                val_predicted_trajectories = torch.permute(val_generated_trajectories, (1,0,2))
+
+                val_geodesic_distance = latent_space.metric.dist(latent_space.projection(torch.reshape(val_predicted_trajectories, (-1, n_dims))), val_sample_basis).sum()/num_samps
+                losses.append({"loss_val":val_geodesic_distance.item(), "n": num_samps, "noise": 1/noise, "loss_type": "geodesic"})
+                losses.append({"loss_val":MSELoss()(val_predicted_trajectories, val_trajectories).item(),
+                                "n": num_samps, "noise": 1/noise, "loss_type": "model"}) 
+                losses.append({"loss_val":MSELoss()(val_predicted_trajectories, val_trajectories_clean).item(),
+                              "n": num_samps, "noise": 1/noise, "loss_type": "model_clean"}) 
+           
+    
+        prior_path = "autoencoder"
+        
+        directory_path = Path(f"data/losses/hemisphere/sphere/{prior_path}")
+
+        # Check if the directory exists
+        if not directory_path.exists():
+            # Create the directory
+            directory_path.mkdir(parents=True, exist_ok=True)
+            print(f"Directory '{directory_path}' created.")
+        else:
+            print(f"Directory '{directory_path}' already exists.")
+        pd.DataFrame(losses).to_csv(f"{directory_path}/losses.csv", index=False)
+
+def circle_autoencoder_with_n(sample_sizes: List[int], noise_level: List[float], timesteps:int, keep_preds:bool = False, val:bool = True, loss_type:str = "L2", penalty: float = 0, prior:bool = False):
+
+    n_dims = 2
+    # xi, yi = torch.meshgrid(torch.linspace(-1.5,1.5,50), torch.linspace(-1.5,1.5,50))
+    # manifold_basis = torch.stack([xi.flatten(), yi.flatten()], axis = -1).to(torch.float32)
+
+    losses = []
+    latent_space = Hypersphere(dim = 1, equip=True)
+    for noise in noise_level:
+        for num_samps in sample_sizes:
+            torch.set_default_dtype(torch.float32)
+            trajectories, start_points, start_velo, val_trajectories, val_start_points, val_start_velo = create_geodesic_pairs_circle(num_samps, timesteps, noise = 1/noise)
+            _, _, _, val_trajectories_clean, _, _ = create_geodesic_pairs_circle(num_samps, timesteps, noise = 0)
+            sample_basis = torch.reshape(trajectories,(-1, n_dims)) ### only construct basis from whatever points we have 
+            val_sample_basis = torch.reshape(val_trajectories_clean,(-1, n_dims))
+            initial_conditions = torch.hstack((start_points, start_velo))
+            val_initial_conditions = torch.hstack((val_start_points, val_start_velo))
+
+            print("Training autoencoder")
+            model, preds = train_vanilla_autoencoder(trajectories, initial_conditions, epochs = 100,  n = n_dims,
+                            t = timesteps,  val_initial_conditions=val_initial_conditions, val_input_trajectories=val_trajectories_clean,
+                        return_preds=keep_preds, val=val, loss_type = loss_type)
+            
+            with torch.no_grad():
+                val_generated_trajectories = model.forward(val_initial_conditions)
+                val_predicted_trajectories = torch.permute(val_generated_trajectories, (1,0,2))
+                plot_convergence([torch.reshape(val_predicted_trajectories, (-1, n_dims))], val_sample_basis,n = num_samps, penalty = penalty, skip_every = 30, val = val, noise=noise, prior = prior, autoencoder=True)
+                val_geodesic_distance = latent_space.metric.dist(latent_space.projection(torch.reshape(val_predicted_trajectories, (-1, n_dims))), val_sample_basis).mean()
+                losses.append({"loss_val":val_geodesic_distance, "n": num_samps, "noise": 1/noise, "loss_type": "geodesic"})
+                losses.append({"loss_val":MSELoss()(val_predicted_trajectories , val_trajectories).item(),
+                              "n": num_samps, "noise": 1/noise, "loss_type": "model"})  
+                losses.append({"loss_val":MSELoss()(val_predicted_trajectories, val_trajectories_clean).item(),
+                              "n": num_samps, "noise": 1/noise, "loss_type": "model_clean"})   
+            if keep_preds:
+                plot_convergence(preds, sample_basis, skip_every=30, n = num_samps, penalty = penalty, noise=noise, prior = prior, autoencoder=True, val= False )
+    
+    prior_path = "autoencoder"
+    
+    directory_path = Path(f"data/losses/normal/circle/{prior_path}")
+
+    # Check if the directory exists
+    if not directory_path.exists():
+        # Create the directory
+        directory_path.mkdir(parents=True, exist_ok=True)
+        print(f"Directory '{directory_path}' created.")
+    else:
+        print(f"Directory '{directory_path}' already exists.")
+    pd.DataFrame(losses).to_csv(f"{directory_path}/losses.csv", index=False)
+
+
+
+def circle_autoencoder_hemisphere_with_n(sample_sizes: List[int], noise_level: List[float], timesteps:int, keep_preds:bool = False, val:bool = True, loss_type:str = "L2", penalty: float = 0, prior:bool = False):
+
+    n_dims = 2
+    # xi, yi = torch.meshgrid(torch.linspace(-1.5,1.5,50), torch.linspace(-1.5,1.5,50))
+    # manifold_basis = torch.stack([xi.flatten(), yi.flatten()], axis = -1).to(torch.float32)
+
+    losses = []
+    latent_space = Hypersphere(dim = 1, equip=True)
+    for noise in noise_level:
+        for num_samps in sample_sizes:
+            torch.set_default_dtype(torch.float32)
+            trajectories, start_points, start_velo, val_trajectories, val_start_points, val_start_velo = create_geodesic_pairs_circle_hemisphere(num_samps, timesteps, noise = 1/noise)
+            _, _, _, val_trajectories_clean, _, _ = create_geodesic_pairs_circle_hemisphere(num_samps, timesteps, noise = 0)
+            sample_basis = torch.reshape(trajectories,(-1, n_dims)) ### only construct basis from whatever points we have 
+            val_sample_basis = torch.reshape(val_trajectories_clean,(-1, n_dims))
+            initial_conditions = torch.hstack((start_points, start_velo))
+            val_initial_conditions = torch.hstack((val_start_points, val_start_velo))
+
+            print("Training autoencoder")
+            model, preds = train_vanilla_autoencoder(trajectories, initial_conditions, epochs = 100,  n = n_dims,
+                            t = timesteps,  val_initial_conditions=val_initial_conditions, val_input_trajectories=val_trajectories_clean,
+                        return_preds=keep_preds, val=val, loss_type = loss_type)
+            
+            with torch.no_grad():
+                val_generated_trajectories = model.forward(val_initial_conditions)
+                val_predicted_trajectories = torch.permute(val_generated_trajectories, (1,0,2))
+                plot_convergence([torch.reshape(val_predicted_trajectories, (-1, n_dims))], val_sample_basis,n = num_samps, penalty = penalty, skip_every = 30, val = val, noise=noise, prior = prior, autoencoder=True, hemisphere=True)
+                val_geodesic_distance = latent_space.metric.dist(latent_space.projection(torch.reshape(val_predicted_trajectories, (-1, n_dims))), val_sample_basis).mean()
+                losses.append({"loss_val":val_geodesic_distance, "n": num_samps, "noise": 1/noise, "loss_type": "geodesic"})
+                losses.append({"loss_val":MSELoss()(val_predicted_trajectories , val_trajectories).mean().item(),
+                              "n": num_samps, "noise": 1/noise, "loss_type": "model"})  
+                losses.append({"loss_val":MSELoss()(val_predicted_trajectories,  val_trajectories_clean).mean().item(),
+                              "n": num_samps, "noise": 1/noise, "loss_type": "model_clean"})   
+            if keep_preds:
+                plot_convergence(preds, sample_basis, skip_every=30, n = num_samps, penalty = penalty, noise=noise, prior = prior, autoencoder=True, val= False, hemisphere=True )
+    
+    prior_path = "autoencoder"
+
+    
+    directory_path = Path(f"data/losses/hemisphere/circle/{prior_path}")
+
+    # Check if the directory exists
+    if not directory_path.exists():
+        # Create the directory
+        directory_path.mkdir(parents=True, exist_ok=True)
+        print(f"Directory '{directory_path}' created.")
+    else:
+        print(f"Directory '{directory_path}' already exists.")
+    pd.DataFrame(losses).to_csv(f"{directory_path}/losses.csv", index=False)
+
+def train_whale(data: pd.DataFrame, keep_preds:bool = False, val:bool = False, loss_type:str = "L2"):
+    data = data[data["algorithm-marked-outlier"] != True]
+
+    theta = np.deg2rad(data["location-lat"] + 90) #### theta
+    phi = np.deg2rad(data["location-long"] + 180) ### phi 
+    data["x"] = np.sin(theta) * np.cos(phi)
+    data["y"] = np.sin(phi) * np.sin(theta)
+    data["z"] = np.cos(theta)
+
+
+    data_clean = data.groupby(["tag-local-identifier","timestamp"]).head(1)
+    data_clean["time_difference"] = data_clean.groupby("tag-local-identifier")["timestamp"].transform(lambda x: pd.to_datetime(x).diff()).apply(lambda x: x.seconds)
+    data_clean.fillna(0, inplace=True)
+    data_clean["total_time"] = data_clean.groupby(["tag-local-identifier"])["time_difference"].transform(lambda x: np.cumsum(x))
+    data_clean["total_time"] = data_clean.groupby("tag-local-identifier")["total_time"].transform(lambda x: x / max(x))
+    data_clean = data_clean.groupby("tag-local-identifier").filter(lambda x: len(x) > 10)
+    
+
+    xi, yi, zi = torch.meshgrid( torch.linspace(data_clean["x"].min(), data_clean["x"].max(), 15), torch.linspace(data_clean["y"].min(), data_clean["y"].max(), 15),  torch.linspace(data_clean["z"].min(), data_clean["z"].max(), 15))
+    manifold_basis = torch.stack([xi.flatten(), yi.flatten(), zi.flatten()], axis = -1).to(torch.float32)
+    m = [3,3,3]
     c = 4.0
-    
-    active_dims = [0,1]
+    active_dims = [0,1,2]
     n_dims = len(active_dims)
-    filtered_data = data.groupby(["nflId_pr","playId"]).filter(lambda x: len(x)/10 > timesteps/10)
-    trajectories = torch.from_numpy(np.stack(filtered_data.groupby(["nflId_pr","playId"]).apply(lambda x: x.head(timesteps)[["x_smooth_pr_std","y_smooth_pr_std"]].to_numpy()).reset_index()[0], axis = 0)).to(torch.float32)
 
-    start_points = trajectories[:,0,:]
-    sample_basis = torch.reshape(trajectories,(-1, n_dims)) ### only construct basis from whatever points we have 
-    x_max, x_min = torch.max(sample_basis[:,0]), torch.min(sample_basis[:,0])
-    y_max, y_min = torch.max(sample_basis[:,1]), torch.min(sample_basis[:,1])
-    xi, yi = torch.meshgrid(torch.linspace(x_min, x_max,50), torch.linspace(y_min,y_max,50))
-    manifold_basis = torch.stack([xi.flatten(), yi.flatten(),], axis = -1).to(torch.float32)
-    start_velo = (start_points - trajectories[:,1,:])/2
-    
+    torch.set_default_dtype(torch.float32)
+    timesteps = data_clean.groupby("tag-local-identifier").apply(lambda x: x["total_time"].to_numpy()).reset_index()[0].to_list()
+    trajectory_raw = data_clean.groupby("tag-local-identifier").apply(lambda x: x[["x","y","z"]].to_numpy()).reset_index()[0]
+
+    trajectories = [torch.from_numpy(item).to(torch.float32) for item in trajectory_raw]
+    start_points = torch.from_numpy(np.stack([item[0,:] for item in trajectory_raw], axis = 0)).to(torch.float32)
+
+    start_velo = torch.from_numpy(np.stack([np.gradient(traj,time, edge_order = 1, axis = 0)[0,:] for traj, time  in zip(trajectory_raw, timesteps)], axis = 0)).to(torch.float32)
+
+
+    sample_basis = torch.from_numpy(data[["x","y","z"]].to_numpy()).to(torch.float32) ### only construct basis from whatever points we have 
 
     initial_conditions = torch.hstack((start_points, start_velo))
+
     # visualize_training_data_sphere(sample_basis, num_samps)
-    
-    if prior:
-        if penalty > 0:
-            print("Training normal metric with prior")
-            model, preds = train(trajectories, initial_conditions, epochs = 100, regularizer=penalty, n = n_dims,
-                        t = timesteps, m = m, c = c, 
-                    basis = sample_basis.to(torch.float32), active_dims = active_dims, return_preds=keep_preds, val=False, loss_type = loss_type)
-        elif penalty == 0:
-            print("Training symmetric metric")
-            model, preds = train_symmetric_circle(trajectories, initial_conditions, epochs = 100, n = n_dims,
-                        t = timesteps, m = m, c = c, 
-                    basis = sample_basis.to(torch.float32), active_dims = active_dims, return_preds=keep_preds, val=False, loss_type = loss_type)
-    else:
-        print("Training normal metric without prior")
-        model, preds = train(trajectories, initial_conditions, epochs = 100, regularizer=penalty, n = n_dims,
-                        t = timesteps, m = m, c = c, 
-                    basis = sample_basis.to(torch.float32), active_dims = active_dims, return_preds=keep_preds, val=False, loss_type = loss_type)
+
+    print("Training whales")
+    model, preds = train_batch(trajectories, initial_conditions, epochs = 1,  n = n_dims,
+                    t = [torch.from_numpy(timestep).to(torch.float32) for timestep in timesteps],  
+                    return_preds=keep_preds, val=val, loss_type = loss_type, basis=sample_basis, c=c, m=m,active_dims=active_dims, regularizer=0)
     
     ricci_curvature = model.metric_space.ricci_scalar(manifold_basis)
-    visualize_curvature(ricci_curvature[:,None].detach().numpy(), manifold_basis[:,0], manifold_basis[:,1] )
+    visualize_curvature(ricci_curvature[:,None].detach().numpy(), manifold_basis[:,0], manifold_basis[:,1], manifold_basis[:, 2] )
+    
+    
+
 
 
 
@@ -355,7 +553,7 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(description="Arguments for fitting manifold estimation model")
     # Add command-line arguments
-    parser.add_argument("--manifold", type = str, help = "which type of data", default = "sphere")
+    parser.add_argument("--manifold", type = str, help = "which type of manifold", default = "sphere")
     parser.add_argument("--loss", type = str, help="which type of loss", default = "L2")
     parser.add_argument('--noise',type=lambda x: [float(item) for item in x.split(",")], help='noise to jitter generated geodesics')
     parser.add_argument('--penalty',type=float, help='how much to penalize prior', default = 0.0)
@@ -365,27 +563,34 @@ if __name__ == "__main__":
     parser.add_argument('--timesteps', type=int,  help='length of trajectories')
     parser.add_argument('--sample_sizes',type=lambda x: [int(item) for item in x.split(",")], help='comma separated list of ints')
     parser.add_argument('--hemisphere', action="store_true", help="fit one part of the manifold", default = False)
+    parser.add_argument("--autoencoder", action="store_true", help = "which type of model", default = False)
     args = parser.parse_args()
 
     torch.manual_seed(12)
     if args.manifold == "circle":
         if args.hemisphere:
-            circle_metric_hemisphere_with_n(sample_sizes = args.sample_sizes, noise_level = args.noise, penalty = args.penalty, keep_preds=args.keep_preds, timesteps=args.timesteps, loss_type=args.loss, prior=args.prior)
-
+            if not args.autoencoder:
+                circle_metric_hemisphere_with_n(sample_sizes = args.sample_sizes, noise_level = args.noise, penalty = args.penalty, keep_preds=args.keep_preds, timesteps=args.timesteps, loss_type=args.loss, prior=args.prior)
+            else:
+                circle_autoencoder_hemisphere_with_n(sample_sizes=args.sample_sizes, noise_level=args.noise, timesteps=args.timesteps, keep_preds=args.keep_preds, val = args.val, loss_type = args.loss)
         else:
-            circle_metric_with_n(sample_sizes = args.sample_sizes, noise_level = args.noise, penalty = args.penalty, keep_preds=args.keep_preds, timesteps=args.timesteps, loss_type=args.loss, prior=args.prior)
+            if not args.autoencoder:
+                circle_metric_with_n(sample_sizes = args.sample_sizes, noise_level = args.noise, penalty = args.penalty, keep_preds=args.keep_preds, timesteps=args.timesteps, loss_type=args.loss, prior=args.prior)
+            else:
+                circle_autoencoder_with_n(sample_sizes=args.sample_sizes, noise_level=args.noise, timesteps=args.timesteps, keep_preds=args.keep_preds, val = args.val, loss_type = args.loss)
     elif args.manifold == "sphere":
         if args.hemisphere:
-            sphere_metric_hemisphere_with_n(sample_sizes = args.sample_sizes, noise_level = args.noise, penalty = args.penalty, keep_preds=args.keep_preds, timesteps=args.timesteps, loss_type=args.loss, prior = args.prior)
+            if not args.autoencoder:
+                sphere_metric_hemisphere_with_n(sample_sizes = args.sample_sizes, noise_level = args.noise, penalty = args.penalty, keep_preds=args.keep_preds, timesteps=args.timesteps, loss_type=args.loss, prior = args.prior)
+            else:
+                sphere_autoencoder_hemisphere_with_n(sample_sizes=args.sample_sizes, noise_level=args.noise, timesteps=args.timesteps, keep_preds=args.keep_preds, val = args.val, loss_type = args.loss)
         else:
-            sphere_metric_with_n(sample_sizes = args.sample_sizes, noise_level = args.noise, penalty = args.penalty, keep_preds=args.keep_preds, timesteps=args.timesteps, loss_type=args.loss, prior = args.prior)
-    elif args.manifold == "football":
-        football_sphere_metric(data = pd.read_csv("data/nfl_data/sample_data.csv"), keep_preds = args.keep_preds, penalty = args.penalty, prior = args.prior, timesteps = args.timesteps)
+            if not args.autoencoder:
+                sphere_metric_with_n(sample_sizes = args.sample_sizes, noise_level = args.noise, penalty = args.penalty, keep_preds=args.keep_preds, timesteps=args.timesteps, loss_type=args.loss, prior = args.prior)
+            else:
+                sphere_autoencoder_with_n(sample_sizes=args.sample_sizes, noise_level=args.noise, timesteps=args.timesteps, keep_preds=args.keep_preds, val = args.val, loss_type = args.loss)
 
-
-
-
-
+    elif args.manifold == "whale":
+        train_whale(data = pd.read_csv("data/whale_data/Movements of Australia's east coast humpback whales.csv"), loss_type = args.loss, keep_preds = args.keep_preds, val = args.val)
 
     
-        

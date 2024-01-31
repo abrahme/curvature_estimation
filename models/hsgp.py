@@ -36,7 +36,7 @@ def calc_eigenvectors(
         c = 1.0 / torch.sqrt(L[d])
         term1 = torch.sqrt(eigvals[:, d])
         term2 = torch.tile(Xs[:, d][:, None], (m_star,)) + L[d]
-        phi *= c * torch.sin(term1 * term2)
+        phi = phi *  c * torch.sin(term1 * term2)
     return phi
 
 def calc_eigenvectors_deriv(
@@ -57,7 +57,7 @@ def calc_eigenvectors_deriv(
         c = 1.0 / torch.sqrt(L[d])
         term1 = torch.sqrt(eigvals[:, d])
         term2 = torch.tile(Xs[:, d][:, None], (m_star,)) + L[d]
-        phi *= c * torch.sin(term1 * term2) if d != deriv_dim else c*torch.cos(term1 * term2) * term1
+        phi = phi * c * torch.sin(term1 * term2) if d != deriv_dim else c*torch.cos(term1 * term2) * term1
     return phi
 
 

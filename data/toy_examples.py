@@ -73,7 +73,7 @@ def create_geodesic_pairs_sphere_hemisphere(N, time_steps, noise = 0):
     space = Hypersphere(dim = 2)
     t = torch.linspace(0,1,time_steps)
     phi = torch.rand((N,1)) * np.pi ### sample angle in right quadrant 
-    theta = torch.rand((N,1))*(2*np.pi)  ## sample 
+    theta = torch.rand((N,1))*(np.pi)  ## sample 
     start_points = space.spherical_to_extrinsic(torch.hstack([theta, phi]))
     start_tangent_vecs = space.random_tangent_vec(n_samples = N, base_point=start_points)
     geodesic = space.metric.geodesic(initial_point=start_points, initial_tangent_vec = start_tangent_vecs)
@@ -81,7 +81,7 @@ def create_geodesic_pairs_sphere_hemisphere(N, time_steps, noise = 0):
     noise_vec = torch.randn(*geodesic_trajectories.shape) * noise
     geodesic_trajectories += noise_vec
 
-    val_start_points = space.spherical_to_extrinsic(torch.hstack([theta, phi + np.pi]))
+    val_start_points = space.spherical_to_extrinsic(torch.hstack([theta + np.pi, phi + np.pi]))
     val_start_tangent_vecs = space.random_tangent_vec( n_samples = N, base_point = val_start_points)
 
     val_geodesic = space.metric.geodesic(initial_point=val_start_points, initial_tangent_vec = val_start_tangent_vecs)

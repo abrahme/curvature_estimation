@@ -2,7 +2,7 @@ from typing import List, Tuple
 import torch
 import numpy as np
 import torch.optim as optim
-from .model import RiemannianAutoencoder, SymmetricRiemannianAutoencoder, VanillaAutoencoder, SymmetricRiemannianAutoencoderSphere
+from .model import RiemannianAutoencoder, SymmetricRiemannianAutoencoder, SymmetricRiemannianAutoencoderSphere, VanillaAutoencoder, RiemannianAutoencoderBatch
 
 
 class EarlyStopping:
@@ -151,5 +151,76 @@ def train_symmetric_sphere(input_trajectories, initial_conditions: torch.Tensor,
 
         print(f"Epoch: {epoch + 1}, Loss: {loss.item()}, Val Loss: {val_loss.item()}")
 
+
+    return model, preds
+
+
+
+def train_batch(input_trajectories: List[torch.Tensor], initial_conditions: torch.Tensor, epochs,regularizer:float, n, t, m:List[int], c:float, basis, active_dims: List, return_preds:bool = False, val: bool = False, loss_type:str = "L2", val_input_trajectories: torch.Tensor = None, 
+          val_initial_conditions:Tuple[torch.Tensor, torch.Tensor] = None):
+    dataset_size = len(input_trajectories)
+    model = RiemannianAutoencoderBatch(n =n, t = t,m = m,c = c,regularization=regularizer, basis = basis, active_dims = active_dims, loss_type =loss_type)
+    optimizer = optim.Adam(model.parameters(), lr=0.01)
+    preds = []  
+    for epoch in range(epochs):
+        optimizer.zero_grad()
+        loss = torch.Tensor([0.0])
+        for element in range(dataset_size):
+        # Forward pass
+            predicted_trajectories = model.forward(initial_conditions[element,:][None,:], epoch = element)
+            loss += model.loss(torch.permute(predicted_trajectories, (1,0,2)), input_trajectories[element][None:,:].float())
+        loss /= dataset_size
+        # Backward pass and optimization
+        loss.backward(retain_graph=True)
+        
+        optimizer.step()
+        print("stepped")
+        if val:
+            model.eval()
+            with torch.no_grad():
+                predicted_val_trajectories = model.forward(val_initial_conditions)
+                val_loss = model.loss(torch.permute(predicted_val_trajectories.float().detach(), (1,0,2)), val_input_trajectories.float(), val = True)
+        else:
+            val_loss = None
+        if return_preds:
+            with torch.no_grad():
+                preds.append([torch.permute(model.forward(initial_conditions[i,:][None, :], i).detach(), (1,0,2)) for i in range(dataset_size)])
+
+        print(f"Epoch: {epoch + 1}, Loss: {loss.item()}, Val Loss: {val_loss.item() if val else val_loss}")
+
+    return model, preds
+
+def train_vanilla_autoencoder(input_trajectories, initial_conditions: torch.Tensor, val_input_trajectories, 
+          val_initial_conditions:Tuple[torch.Tensor, torch.Tensor], epochs, 
+           n, t, return_preds:bool = False, val: bool = False, loss_type:str = "L2"):
+
+    
+    model = VanillaAutoencoder(n = n, t = t, loss_type= loss_type)
+    optimizer = optim.Adam(model.parameters(), lr=0.01)
+    preds = []  
+    with torch.no_grad():
+        predicted_trajectories = model.forward(initial_conditions)
+        preds.append(torch.permute(predicted_trajectories.detach(), (1,0,2)))
+    for epoch in range(epochs):
+        optimizer.zero_grad()
+        # Forward pass
+        predicted_trajectories = model.forward(initial_conditions)
+        loss = model.loss(torch.permute(predicted_trajectories, (1,0,2)), input_trajectories.float())
+        # Backward pass and optimization
+        loss.backward()
+        
+        optimizer.step()
+
+        if val:
+            model.eval()
+            with torch.no_grad():
+                predicted_val_trajectories = model.forward(val_initial_conditions)
+                val_loss = model.loss(torch.permute(predicted_val_trajectories.float().detach(), (1,0,2)), val_input_trajectories.float(), val = True)
+        else:
+            val_loss = "None"
+        if return_preds:
+            preds.append(torch.permute(predicted_trajectories.detach(), (1,0,2)))
+
+        print(f"Epoch: {epoch + 1}, Loss: {loss.item()}, Val Loss: {val_loss.item()}")
 
     return model, preds
