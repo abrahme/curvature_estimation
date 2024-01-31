@@ -165,7 +165,7 @@ def circle_metric_with_n(sample_sizes: List[int], noise_level: float,timesteps:i
 
 
 def sphere_metric_with_n(sample_sizes: List[int], noise_level: List[float], timesteps:int, keep_preds:bool = False, val:bool = True, loss_type:str = "L2", penalty: float = 0, prior:bool = False):
-    xi, yi, zi = torch.meshgrid(torch.linspace(-1.5,1.5,50), torch.linspace(-1.5,1.5,50), torch.linspace(-1.5,1.5,50))
+    xi, yi, zi = torch.meshgrid(torch.linspace(-1.5,1.5,20), torch.linspace(-1.5,1.5,20), torch.linspace(-1.5,1.5,20))
     manifold_basis = torch.stack([xi.flatten(), yi.flatten(), zi.flatten()], axis = -1)
     m = [3,3,3]
     c = 4.0
@@ -233,7 +233,7 @@ def sphere_metric_with_n(sample_sizes: List[int], noise_level: List[float], time
         
 
 def sphere_metric_hemisphere_with_n(sample_sizes: List[int], noise_level: List[float], timesteps:int, keep_preds:bool = False, val:bool = True, loss_type:str = "L2", penalty: float = 0, prior:bool = False):
-    xi, yi, zi = torch.meshgrid(torch.linspace(-1.5,1.5,50), torch.linspace(-1.5,1.5,50), torch.linspace(-1.5,1.5,50))
+    xi, yi, zi = torch.meshgrid(torch.linspace(-1.5,1.5,20), torch.linspace(-1.5,1.5,20), torch.linspace(-1.5,1.5,20))
     manifold_basis = torch.stack([xi.flatten(), yi.flatten(), zi.flatten()], axis = -1)
     m = [3,3,3]
     c = 4.0
@@ -261,7 +261,7 @@ def sphere_metric_hemisphere_with_n(sample_sizes: List[int], noise_level: List[f
                     print("Training symmetric metric")
                     model, preds = train_symmetric_sphere(trajectories, initial_conditions, epochs = 100, n = n_dims,
                                 t = timesteps, m = m, c = c, val_initial_conditions=val_initial_conditions, val_input_trajectories=val_trajectories_clean,
-                            basis = manifold_basis.to(torch.float32), active_dims = active_dims, return_preds=keep_preds, val=val, loss_type = loss_type)
+                            basis = sample_basis.to(torch.float32), active_dims = active_dims, return_preds=keep_preds, val=val, loss_type = loss_type)
             else:
                 print("Training normal metric without prior")
                 model, preds = train(trajectories, initial_conditions, epochs = 100, regularizer=penalty, n = n_dims,
