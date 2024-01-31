@@ -2,6 +2,7 @@ import numpy as np
 import argparse
 from pathlib import Path
 import torch
+from torch.nn import MSELoss
 import pandas as pd
 from typing import List
 from models.train import train, train_symmetric_circle, train_symmetric_sphere
@@ -179,27 +180,27 @@ def sphere_metric_with_n(sample_sizes: List[int], noise_level: List[float], time
         for num_samps in sample_sizes:
             torch.set_default_dtype(torch.float32)
             trajectories, start_points, start_velo, val_trajectories, val_start_points, val_start_velo = create_geodesic_pairs_sphere(num_samps, timesteps, noise = 1/noise)
-            _, _, _, val_trajectories_clean, _, _ = create_geodesic_pairs_sphere(num_samps, timesteps, noise = 1/noise)
+            _, _, _, val_trajectories_clean, _, _ = create_geodesic_pairs_sphere(num_samps, timesteps, noise = 0)
             sample_basis = torch.reshape(trajectories,(-1, n_dims)) ### only construct basis from whatever points we have 
-            val_sample_basis = torch.reshape(val_trajectories,(-1, n_dims))
+            val_sample_basis = torch.reshape(val_trajectories_clean,(-1, n_dims))
             initial_conditions = torch.hstack((start_points, start_velo))
             val_initial_conditions = torch.hstack((val_start_points, val_start_velo))
             # visualize_training_data_sphere(sample_basis, num_samps)
             if prior:
                 if penalty > 0:
                     print("Training normal metric with prior")
-                    model, preds = train(trajectories, initial_conditions, epochs = 200, regularizer=penalty, n = n_dims,
-                                t = timesteps, m = m, c = c, val_initial_conditions=val_initial_conditions, val_input_trajectories=val_trajectories,
+                    model, preds = train(trajectories, initial_conditions, epochs = 100, regularizer=penalty, n = n_dims,
+                                t = timesteps, m = m, c = c, val_initial_conditions=val_initial_conditions, val_input_trajectories=val_trajectories_clean,
                             basis = sample_basis.to(torch.float32), active_dims = active_dims, return_preds=keep_preds, val=val, loss_type = loss_type)
                 elif penalty == 0:
                     print("Training symmetric metric")
-                    model, preds = train_symmetric_sphere(trajectories, initial_conditions, epochs = 200, n = n_dims,
-                                t = timesteps, m = m, c = c, val_initial_conditions=val_initial_conditions, val_input_trajectories=val_trajectories,
+                    model, preds = train_symmetric_sphere(trajectories, initial_conditions, epochs = 100, n = n_dims,
+                                t = timesteps, m = m, c = c, val_initial_conditions=val_initial_conditions, val_input_trajectories=val_trajectories_clean,
                             basis = manifold_basis.to(torch.float32), active_dims = active_dims, return_preds=keep_preds, val=val, loss_type = loss_type)
             else:
                 print("Training normal metric without prior")
-                model, preds = train(trajectories, initial_conditions, epochs = 200, regularizer=penalty, n = n_dims,
-                                t = timesteps, m = m, c = c, val_initial_conditions=val_initial_conditions, val_input_trajectories=val_trajectories,
+                model, preds = train(trajectories, initial_conditions, epochs = 100, regularizer=penalty, n = n_dims,
+                                t = timesteps, m = m, c = c, val_initial_conditions=val_initial_conditions, val_input_trajectories=val_trajectories_clean,
                             basis = manifold_basis.to(torch.float32), active_dims = active_dims, return_preds=keep_preds, val=val, loss_type = loss_type)
             
             with torch.no_grad():
@@ -209,9 +210,9 @@ def sphere_metric_with_n(sample_sizes: List[int], noise_level: List[float], time
 
                 val_geodesic_distance = latent_space.metric.dist(latent_space.projection(torch.reshape(val_predicted_trajectories, (-1, n_dims))), val_sample_basis).sum()/num_samps
                 losses.append({"loss_val":val_geodesic_distance.item(), "n": num_samps, "noise": 1/noise, "loss_type": "geodesic"})
-                losses.append({"loss_val":torch.square(val_predicted_trajectories - val_trajectories).mean().item(),
+                losses.append({"loss_val":MSELoss()(val_predicted_trajectories, val_trajectories).item(),
                                 "n": num_samps, "noise": 1/noise, "loss_type": "model"}) 
-                losses.append({"loss_val":torch.square(val_predicted_trajectories - val_trajectories_clean).mean().item(),
+                losses.append({"loss_val":MSELoss()(val_predicted_trajectories , val_trajectories_clean).item(),
                               "n": num_samps, "noise": 1/noise, "loss_type": "model_clean"}) 
             if keep_preds:
                 plot_convergence_sphere(preds, sample_basis, skip_every=30, n = num_samps, penalty = penalty, prior = prior, hemisphere=False, val=False, noise = noise )
@@ -248,27 +249,27 @@ def sphere_metric_hemisphere_with_n(sample_sizes: List[int], noise_level: List[f
         for num_samps in sample_sizes:
             torch.set_default_dtype(torch.float32)
             trajectories, start_points, start_velo, val_trajectories, val_start_points, val_start_velo = create_geodesic_pairs_sphere_hemisphere(num_samps, timesteps, noise = 1/noise)
-            _, _, _, val_trajectories_clean, _, _ = create_geodesic_pairs_sphere_hemisphere(num_samps, timesteps, noise = 1/noise)
+            _, _, _, val_trajectories_clean, _, _ = create_geodesic_pairs_sphere_hemisphere(num_samps, timesteps, noise = 0)
             sample_basis = torch.reshape(trajectories,(-1, n_dims)) ### only construct basis from whatever points we have 
-            val_sample_basis = torch.reshape(val_trajectories,(-1, n_dims))
+            val_sample_basis = torch.reshape(val_trajectories_clean,(-1, n_dims))
             initial_conditions = torch.hstack((start_points, start_velo))
             val_initial_conditions = torch.hstack((val_start_points, val_start_velo))
             # visualize_training_data_sphere(sample_basis, num_samps)
             if prior:
                 if penalty > 0:
                     print("Training normal metric with prior")
-                    model, preds = train(trajectories, initial_conditions, epochs = 200, regularizer=penalty, n = n_dims,
-                                t = timesteps, m = m, c = c, val_initial_conditions=val_initial_conditions, val_input_trajectories=val_trajectories,
+                    model, preds = train(trajectories, initial_conditions, epochs = 100, regularizer=penalty, n = n_dims,
+                                t = timesteps, m = m, c = c, val_initial_conditions=val_initial_conditions, val_input_trajectories=val_trajectories_clean,
                             basis = manifold_basis.to(torch.float32), active_dims = active_dims, return_preds=keep_preds, val=val, loss_type = loss_type)
                 elif penalty == 0:
                     print("Training symmetric metric")
-                    model, preds = train_symmetric_sphere(trajectories, initial_conditions, epochs = 200, n = n_dims,
-                                t = timesteps, m = m, c = c, val_initial_conditions=val_initial_conditions, val_input_trajectories=val_trajectories,
+                    model, preds = train_symmetric_sphere(trajectories, initial_conditions, epochs = 100, n = n_dims,
+                                t = timesteps, m = m, c = c, val_initial_conditions=val_initial_conditions, val_input_trajectories=val_trajectories_clean,
                             basis = manifold_basis.to(torch.float32), active_dims = active_dims, return_preds=keep_preds, val=val, loss_type = loss_type)
             else:
                 print("Training normal metric without prior")
-                model, preds = train(trajectories, initial_conditions, epochs = 200, regularizer=penalty, n = n_dims,
-                                t = timesteps, m = m, c = c, val_initial_conditions=val_initial_conditions, val_input_trajectories=val_trajectories,
+                model, preds = train(trajectories, initial_conditions, epochs = 100, regularizer=penalty, n = n_dims,
+                                t = timesteps, m = m, c = c, val_initial_conditions=val_initial_conditions, val_input_trajectories=val_trajectories_clean,
                             basis = sample_basis.to(torch.float32), active_dims = active_dims, return_preds=keep_preds, val=val, loss_type = loss_type)
             
             with torch.no_grad():
@@ -278,9 +279,9 @@ def sphere_metric_hemisphere_with_n(sample_sizes: List[int], noise_level: List[f
 
                 val_geodesic_distance = latent_space.metric.dist(latent_space.projection(torch.reshape(val_predicted_trajectories, (-1, n_dims))), val_sample_basis).sum()/num_samps
                 losses.append({"loss_val":val_geodesic_distance.item(), "n": num_samps, "noise": 1/noise, "loss_type": "geodesic"})
-                losses.append({"loss_val":torch.square(val_predicted_trajectories - val_trajectories).mean().item(),
+                losses.append({"loss_val":MSELoss()(val_predicted_trajectories ,val_trajectories).item(),
                                 "n": num_samps, "noise": 1/noise, "loss_type": "model"}) 
-                losses.append({"loss_val":torch.square(val_predicted_trajectories - val_trajectories_clean).mean().item(),
+                losses.append({"loss_val":MSELoss()(val_predicted_trajectories, val_trajectories_clean).item(),
                               "n": num_samps, "noise": 1/noise, "loss_type": "model_clean"}) 
             if keep_preds:
                 plot_convergence_sphere(preds, sample_basis, skip_every=30, n = num_samps, penalty = penalty, prior = prior, hemisphere=True, val=False, noise = noise )
