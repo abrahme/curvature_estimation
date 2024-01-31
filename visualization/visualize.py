@@ -8,7 +8,7 @@ from pathlib import Path
 
 
 
-def visualize_convergence(pred_trajectories: np.ndarray, actual_trajectories: np.ndarray, n:int, epoch_num: int,  val: bool, noise: int, hemisphere:bool = False,penalty: float = 0,  prior:bool = False):
+def visualize_convergence(pred_trajectories: np.ndarray, actual_trajectories: np.ndarray, n:int, epoch_num: int,  val: bool, noise: int, hemisphere:bool = False,penalty: float = 0,  prior:bool = False, autoencoder:bool = False):
 
     plt.scatter(actual_trajectories[:,0], actual_trajectories[:,1], alpha=.3,color='blue', label = "Actual")
     plt.scatter(pred_trajectories[:,0], pred_trajectories[:,1], color = "red", alpha = .3, label = "Predicted")
@@ -19,15 +19,19 @@ def visualize_convergence(pred_trajectories: np.ndarray, actual_trajectories: np
 
     # Plot the circle
     plt.plot(x_circle, y_circle, color='red', linestyle='dashed', label='Manual Circle')
+    plt.xlim((-1.5,1.5))
+    plt.ylim((-1.5,1.5))
     plt.xlabel('X-axis')
     plt.ylabel('Y-axis')
     plt.legend()
-    prior_path = "normal"
+    prior_path = "normal" 
     if prior:
         if penalty > 0:
              prior_path = "prior"
         elif penalty == 0:
             prior_path = "explicit_prior"
+    if autoencoder:
+        prior_path = "autoencoder"
 
     training_path = "val" if val else "training"
     fpath = f"data/{'plots' if not hemisphere else 'hemisphere_plots'}/{prior_path}/{training_path}/{n}/{noise}"
@@ -143,5 +147,7 @@ def visualize_loss(loss_1: np.ndarray, loss_2: np.ndarray, n: List[int]):
 
     # Show the plot
     plt.show()
+
+
 
 

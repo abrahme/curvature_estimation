@@ -1,8 +1,9 @@
 from typing import List, Tuple
 import torch
+import torch.nn as nn
 import numpy as np
 import torch.optim as optim
-from .model import RiemannianAutoencoder, SymmetricRiemannianAutoencoder, VanillaAutoencoder, SymmetricRiemannianAutoencoderSphere
+from .model import RiemannianAutoencoder, SymmetricRiemannianAutoencoder, SymmetricRiemannianAutoencoderSphere, VanillaAutoencoder
 
 
 class EarlyStopping:
@@ -156,20 +157,22 @@ def train_symmetric_sphere(input_trajectories, initial_conditions: torch.Tensor,
     return model, preds
 
 
-def train_vanilla_autoencoder(input_trajectories,  val_input_trajectories, epochs, timesteps: int, ndims: int, return_preds:bool = False, val: bool = False, hidden_size:int = 25):
-    input_traj_reshape = input_trajectories.view( input_trajectories.size(0), timesteps*ndims)
-    val_input_traj_reshape = val_input_trajectories.view(val_input_trajectories.size(0), timesteps*ndims)
-    model = VanillaAutoencoder(input_size=input_traj_reshape.shape[1], hidden_size=hidden_size)
+def train_vanilla_autoencoder(input_trajectories, initial_conditions: torch.Tensor, val_input_trajectories, 
+          val_initial_conditions:Tuple[torch.Tensor, torch.Tensor], epochs, 
+           n, t, return_preds:bool = False, val: bool = False, loss_type:str = "L2"):
+
+    
+    model = VanillaAutoencoder(n = n, t = t, loss_type= loss_type)
     optimizer = optim.Adam(model.parameters(), lr=0.01)
     preds = []  
     with torch.no_grad():
-        predicted_trajectories = model.forward(input_traj_reshape)
-        preds.append(torch.reshape(predicted_trajectories, (input_trajectories.size(0), timesteps, ndims)))
+        predicted_trajectories = model.forward(initial_conditions)
+        preds.append(torch.permute(predicted_trajectories.detach(), (1,0,2)))
     for epoch in range(epochs):
         optimizer.zero_grad()
         # Forward pass
-        predicted_trajectories = model.forward(input_traj_reshape)
-        loss = model.loss(input_traj_reshape)
+        predicted_trajectories = model.forward(initial_conditions)
+        loss = model.loss(torch.permute(predicted_trajectories, (1,0,2)), input_trajectories.float())
         # Backward pass and optimization
         loss.backward()
         
@@ -178,15 +181,13 @@ def train_vanilla_autoencoder(input_trajectories,  val_input_trajectories, epoch
         if val:
             model.eval()
             with torch.no_grad():
-                predicted_val_trajectories = model.forward(val_input_traj_reshape)
-                val_loss = model.loss(val_input_traj_reshape)
+                predicted_val_trajectories = model.forward(val_initial_conditions)
+                val_loss = model.loss(torch.permute(predicted_val_trajectories.float().detach(), (1,0,2)), val_input_trajectories.float(), val = True)
         else:
             val_loss = "None"
         if return_preds:
-            preds.append(torch.reshape(predicted_val_trajectories, (val_input_trajectories.size(0), timesteps, ndims)))
+            preds.append(torch.permute(predicted_trajectories.detach(), (1,0,2)))
 
         print(f"Epoch: {epoch + 1}, Loss: {loss.item()}, Val Loss: {val_loss.item()}")
-
-
 
     return model, preds

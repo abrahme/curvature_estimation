@@ -16,6 +16,19 @@ class _ODEFunc(nn.Module):
         ode_eq = self.module.geodesic_equation(torch.hsplit(x,2), t)
         return ode_eq
 
+class ODEBlockMLP(nn.Module):
+    def __init__(self, odefunc: nn.Module, solver: str = 'dopri5',
+                 sensitivity:str = 'adjoint',
+                 rtol: float = 1e-4, atol: float = 1e-4):
+        super(ODEBlockMLP, self).__init__()
+        self.odefunc = odefunc
+        self.ode_solver = NeuralODE(self.odefunc, solver = solver, 
+                                    sensitivity=sensitivity, atol=atol, rtol=rtol)
+    
+    def forward(self, X: torch.Tensor, integration_time):
+
+        _, out = self.ode_solver(X, integration_time)
+        return out
 
 class ODEBlock(nn.Module):
     def __init__(self, odefunc: nn.Module, solver: str = 'dopri5',
@@ -172,22 +185,39 @@ class SymmetricRiemannianAutoencoderSphere(nn.Module):
 
         return parameter_loss
     
-
-
-# Create a simple autoencoder class
 class VanillaAutoencoder(nn.Module):
-    def __init__(self, input_size, hidden_size):
+    def __init__(self, n: int,t: int, loss_type: str = "L2"):
         super(VanillaAutoencoder, self).__init__()
-        self.encoder = nn.Linear(input_size, hidden_size)
-        self.decoder = nn.Linear(hidden_size, input_size)
 
-    def forward(self, x):
-        encoded = self.encoder(x)
-        decoded = self.decoder(encoded)
-        return decoded
+        self.ode_layer = ODEBlockMLP(nn.Sequential(
+        nn.Linear(2*n, 16),
+        nn.Tanh(),
+        nn.Linear(16, 2*n)
+    ))
+        self.n = n ### dimension of manifold
+        self.t = t ### timepoints to extend
 
-    def loss(self, x):
-        return nn.MSELoss()(x, self.forward(x))
+        self.loss_type = loss_type
+
+    def forward(self,initial_conditions):
+        time_steps = torch.linspace(0.0,1.0,self.t)
+        predicted_vals = self.ode_layer(initial_conditions, time_steps)
+        split_size = self.n
+        return predicted_vals[:,:,0:split_size]
+
+    
+    def loss(self, predicted_vals, actual_vals, val = False):
+        if self.loss_type == "L2":
+            reconstruction_loss = nn.MSELoss()(predicted_vals,actual_vals)
+        elif self.loss_type == "Hausdorff":
+            reconstruction_loss = torch.FloatTensor([0.0])
+            for i in range(predicted_vals.shape[0]):
+                reconstruction_loss += SamplesLoss("sinkhorn")(predicted_vals[i], actual_vals[i])
+        return reconstruction_loss
+    
+
+
+
 
 
 
