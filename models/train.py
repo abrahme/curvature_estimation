@@ -1,6 +1,6 @@
 from typing import List, Tuple
 import torch
-import torch.nn as nn
+
 import numpy as np
 import torch.optim as optim
 from .model import RiemannianAutoencoder, SymmetricRiemannianAutoencoder, SymmetricRiemannianAutoencoderSphere, VanillaAutoencoder
@@ -129,9 +129,6 @@ def train_symmetric_sphere(input_trajectories, initial_conditions: torch.Tensor,
     model = SymmetricRiemannianAutoencoderSphere(n = n,t = t,m = m,c = c, basis = basis, active_dims = active_dims, loss_type =loss_type)
     optimizer = optim.Adam(model.parameters(), lr=0.01)
     preds = []  
-    with torch.no_grad():
-        predicted_trajectories = model.forward(initial_conditions)
-        preds.append(torch.permute(predicted_trajectories.detach(), (1,0,2)))
     for epoch in range(epochs):
         optimizer.zero_grad()
         # Forward pass
@@ -155,7 +152,6 @@ def train_symmetric_sphere(input_trajectories, initial_conditions: torch.Tensor,
 
 
     return model, preds
-
 
 def train_vanilla_autoencoder(input_trajectories, initial_conditions: torch.Tensor, val_input_trajectories, 
           val_initial_conditions:Tuple[torch.Tensor, torch.Tensor], epochs, 

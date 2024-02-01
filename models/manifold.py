@@ -13,10 +13,6 @@ class MyBVPSolver(_LogShootingSolverFlatten):
         super().__init__(optimizer, initialization)
         self.optimizer = ScipyMinimize()
 
-
-
-
-
 def vector_to_lower_triangular(vector, dim_size: int):
     """ converts a vector to a lower triangular matrix
 

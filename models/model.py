@@ -16,20 +16,6 @@ class _ODEFunc(nn.Module):
         ode_eq = self.module.geodesic_equation(torch.hsplit(x,2), t)
         return ode_eq
 
-class ODEBlockMLP(nn.Module):
-    def __init__(self, odefunc: nn.Module, solver: str = 'dopri5',
-                 sensitivity:str = 'adjoint',
-                 rtol: float = 1e-4, atol: float = 1e-4):
-        super(ODEBlockMLP, self).__init__()
-        self.odefunc = odefunc
-        self.ode_solver = NeuralODE(self.odefunc, solver = solver, 
-                                    sensitivity=sensitivity, atol=atol, rtol=rtol)
-    
-    def forward(self, X: torch.Tensor, integration_time):
-
-        _, out = self.ode_solver(X, integration_time)
-        return out
-
 class ODEBlock(nn.Module):
     def __init__(self, odefunc: nn.Module, solver: str = 'dopri5',
                  sensitivity:str = 'autograd',
@@ -96,8 +82,9 @@ class RiemannianAutoencoder(nn.Module):
         #### lie derivative loss with symmetry of circle
         ### TODO generalize to other symmetries 
         christoffels = self.metric_space.christoffels(self.basis)
-        prior_loss = torch.FloatTensor([self.regularization]) * torch.square(self.basis[:,0]*(christoffels[:,1,:,:].sum((-1,-2))) - self.basis[:,1]*(christoffels[:,0,:,:].sum((-1,-2)))).mean()
-        return prior_loss
+        prior_loss = nn.MSELoss()(self.basis[:,0].view(-1,1,1)*christoffels[:,1,0:2,0:2], self.basis[:,1].view(-1,1,1)*christoffels[:,0,0:2,0:2])
+        return prior_loss * torch.FloatTensor([self.regularization]) 
+
 
 
 class SymmetricRiemannianAutoencoder(nn.Module):
