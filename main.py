@@ -187,7 +187,7 @@ def sphere_metric_with_n(sample_sizes: List[int], noise_level: List[float], time
                     print("Training normal metric with prior")
                     model, preds = train(trajectories, initial_conditions, epochs = 100, regularizer=penalty, n = n_dims,
                                 t = timesteps, m = m, c = c, val_initial_conditions=val_initial_conditions, val_input_trajectories=val_trajectories_clean,
-                            basis = sample_basis.to(torch.float32), active_dims = active_dims, return_preds=keep_preds, val=val, loss_type = loss_type)
+                            basis = manifold_basis.to(torch.float32), active_dims = active_dims, return_preds=keep_preds, val=val, loss_type = loss_type)
                 elif penalty == 0:
                     print("Training symmetric metric")
                     model, preds = train_symmetric_sphere(trajectories, initial_conditions, epochs = 100, n = n_dims,
