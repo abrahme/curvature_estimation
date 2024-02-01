@@ -21,9 +21,8 @@ def visualize_convergence(pred_trajectories: np.ndarray, actual_trajectories: np
     plt.plot(x_circle, y_circle, color='red', linestyle='dashed', label='Manual Circle')
     plt.xlim((-1.5,1.5))
     plt.ylim((-1.5,1.5))
-    plt.xlabel('X-axis')
-    plt.ylabel('Y-axis')
-    plt.legend()
+    plt.xticks(fontsize=15)
+    plt.yticks(fontsize=15)
     prior_path = "normal" 
     if prior:
         if penalty > 0:

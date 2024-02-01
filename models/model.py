@@ -96,8 +96,8 @@ class RiemannianAutoencoder(nn.Module):
         #### lie derivative loss with symmetry of circle
         ### TODO generalize to other symmetries 
         christoffels = self.metric_space.christoffels(self.basis)
-        prior_loss = torch.FloatTensor([self.regularization]) * torch.square(self.basis[:,0]*(christoffels[:,1,:,:].sum((-1,-2))) - self.basis[:,1]*(christoffels[:,0,:,:].sum((-1,-2)))).mean()
-        return prior_loss
+        prior_loss = nn.MSELoss()(self.basis[:,0].view(-1,1,1)*christoffels[:,1,0:2,0:2], self.basis[:,1].view(-1,1,1)*christoffels[:,0,0:2,0:2])
+        return prior_loss * torch.FloatTensor([self.regularization]) 
 
 
 
