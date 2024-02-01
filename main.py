@@ -408,13 +408,13 @@ def circle_autoencoder_with_n(sample_sizes: List[int], noise_level: List[float],
             trajectories, start_points, start_velo, val_trajectories, val_start_points, val_start_velo = create_geodesic_pairs_circle(num_samps, timesteps, noise = 1/noise)
             _, _, _, val_trajectories_clean, _, _ = create_geodesic_pairs_circle(num_samps, timesteps, noise = 0)
             sample_basis = torch.reshape(trajectories,(-1, n_dims)) ### only construct basis from whatever points we have 
-            val_sample_basis = torch.reshape(val_trajectories_clean,(-1, n_dims))
+            val_sample_basis = torch.reshape(val_trajectories,(-1, n_dims))
             initial_conditions = torch.hstack((start_points, start_velo))
             val_initial_conditions = torch.hstack((val_start_points, val_start_velo))
 
             print("Training autoencoder")
             model, preds = train_vanilla_autoencoder(trajectories, initial_conditions, epochs = 100,  n = n_dims,
-                            t = timesteps,  val_initial_conditions=val_initial_conditions, val_input_trajectories=val_trajectories_clean,
+                            t = timesteps,  val_initial_conditions=val_initial_conditions, val_input_trajectories=val_trajectories,
                         return_preds=keep_preds, val=val, loss_type = loss_type)
             
             with torch.no_grad():
@@ -510,7 +510,6 @@ def train_whale(data: pd.DataFrame, keep_preds:bool = False, val:bool = False, l
     data_clean.fillna(0, inplace=True)
     data_clean["total_time"] = data_clean.groupby(["tag-local-identifier"])["time_difference"].transform(lambda x: np.cumsum(x))
     data_clean["total_time"] = data_clean.groupby("tag-local-identifier")["total_time"].transform(lambda x: x / max(x))
-    data_clean = data_clean.groupby("tag-local-identifier").filter(lambda x: len(x) > 10)
     
 
     xi, yi, zi = torch.meshgrid( torch.linspace(data_clean["x"].min(), data_clean["x"].max(), 15), torch.linspace(data_clean["y"].min(), data_clean["y"].max(), 15),  torch.linspace(data_clean["z"].min(), data_clean["z"].max(), 15))
@@ -554,14 +553,21 @@ def train_whale(data: pd.DataFrame, keep_preds:bool = False, val:bool = False, l
     initial_conditions_test = torch.hstack((start_points_test, start_velo_test))
 
     print("Training whales")
-    model, preds = train_batch(trajectories_train, initial_conditions_train, epochs = 1,  n = n_dims,
+    model, preds = train_batch(trajectories_train, initial_conditions_train, epochs = 5,  n = n_dims,
                     t = [torch.from_numpy(timestep).to(torch.float32) for timestep in timesteps_train],  
                     t_val = [torch.from_numpy(timestep).to(torch.float32) for timestep in timesteps_test],
                     val_initial_conditions=initial_conditions_test, val_input_trajectories=trajectories_test,
                     return_preds=keep_preds, val=True, loss_type = loss_type, basis=sample_basis_train, c=c, m=m,active_dims=active_dims, regularizer=0)
     
+    
+    prediction_data = pd.DataFrame(np.concatenate(trajectory_raw_test), columns= ["x","y","z"])
+    prediction_data["value"] = "truth"
+    model_prediction_data = pd.DataFrame(torch.cat([torch.squeeze(pred).numpy() for pred in preds]).numpy(), columns = ["x","y","z"])
+    model_prediction_data["value"] = "predicted"
+    pd.concat([model_prediction_data, prediction_data]).to_csv("data/whale_data/predictions.csv",index=False)
     ricci_curvature = model.metric_space.ricci_scalar(manifold_basis)
-    visualize_curvature(ricci_curvature[:,None].detach().numpy(), manifold_basis[:,0], manifold_basis[:,1], manifold_basis[:, 2] )
+    pd.DataFrame(torch.hstack([ricci_curvature[:,None].detach(), manifold_basis]).numpy(), columns = ["curvature","x","y","z"]).to_csv("data/whale_data/curvature.csv", index = False)
+    # visualize_curvature(ricci_curvature[:,None].detach().numpy(), manifold_basis[:,0], manifold_basis[:,1], manifold_basis[:, 2][:,None] )
     
     
 

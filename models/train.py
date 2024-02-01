@@ -161,7 +161,7 @@ def train_batch(input_trajectories: List[torch.Tensor], initial_conditions: torc
     dataset_size = len(input_trajectories)
     test_dataset_size = len(val_input_trajectories)
     model = RiemannianAutoencoderBatch(n =n, t = t,m = m,c = c,regularization=regularizer, basis = basis, active_dims = active_dims, loss_type =loss_type, t_val=t_val)
-    optimizer = optim.Adam(model.parameters(), lr=0.001)
+    optimizer = optim.Adam(model.parameters(), lr=0.01)
     preds = []  
     for epoch in range(epochs):
 
@@ -174,6 +174,7 @@ def train_batch(input_trajectories: List[torch.Tensor], initial_conditions: torc
             # Backward pass and optimization
             loss.backward(retain_graph=True)
             optimizer.step()
+            print(f"stepped for element {element}")
         if val:
             model.eval()
             with torch.no_grad():
@@ -185,11 +186,11 @@ def train_batch(input_trajectories: List[torch.Tensor], initial_conditions: torc
             val_loss = None
         if return_preds:
             with torch.no_grad():
-                preds.append([torch.permute(model.forward(val_initial_conditions[i,:][None, :], i, val = True).detach(), (1,0,2)) for i in range(test_dataset_size)])
+                val_preds = [torch.permute(model.forward(initial_conditions[i,:][None, :], i, val = False).detach(), (1,0,2)) for i in range(dataset_size)]
 
         print(f"Epoch: {epoch + 1}, Loss: {loss.item()}, Val Loss: {val_loss.item() if val else val_loss}")
 
-    return model, preds
+    return model, val_preds
 
 def train_vanilla_autoencoder(input_trajectories, initial_conditions: torch.Tensor, val_input_trajectories, 
           val_initial_conditions:Tuple[torch.Tensor, torch.Tensor], epochs, 
