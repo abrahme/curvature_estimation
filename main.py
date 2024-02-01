@@ -5,7 +5,7 @@ import torch
 from torch.nn import MSELoss
 import pandas as pd
 from typing import List
-from models.train import train, train_symmetric_circle, train_symmetric_sphere, train_vanilla_autoencoder, train_batch
+from models.train import train, train_symmetric_circle, train_symmetric_sphere, train_vanilla_autoencoder
 from geomstats.geometry.hypersphere import Hypersphere
 from data.toy_examples import create_geodesic_pairs_circle, create_geodesic_pairs_circle_hemisphere, create_geodesic_pairs_sphere, create_geodesic_pairs_sphere_hemisphere
 from visualization.visualize import  visualize_convergence, visualize_convergence_sphere
@@ -490,49 +490,6 @@ def circle_autoencoder_hemisphere_with_n(sample_sizes: List[int], noise_level: L
         print(f"Directory '{directory_path}' already exists.")
     pd.DataFrame(losses).to_csv(f"{directory_path}/losses.csv", index=False)
 
-def train_whale(data: pd.DataFrame, keep_preds:bool = False, val:bool = True, loss_type:str = "L2", penalty: float = 0, prior:bool = False):
-
-    data["lat_rad"] = np.deg2rad(data["location-lat"])
-    data["lon_rad"] = np.deg2rad(data["location-long"])
-    data["x"] = np.cos(data["lat_rad"]) * np.cos(data["lon_rad"])
-    data["y"] = np.cos(data["lat_rad"]) * np.sin(data["lon_rad"])
-    data["z"] = np.sin(data["lat_rad"])
-
-
-    data_clean = data.groupby(["tag-local-identifier","timestamp"]).head(1)
-    data_clean["time_difference"] = data_clean.groupby("tag-local-identifier")["timestamp"].transform(lambda x: pd.to_datetime(x).diff()).apply(lambda x: x.seconds)
-    data_clean.fillna(0, inplace=True)
-    data_clean["total_time"] = data_clean.groupby(["tag-local-identifier"])["time_difference"].transform(lambda x: np.cumsum(x))
-    data_clean["total_time"] = data_clean.groupby("tag-local-identifier")["total_time"].transform(lambda x: x / max(x))
-
-    
-
-    xi, yi, zi = torch.meshgrid( torch.linspace(data_clean["x"].min(), data_clean["x"].max(), 15), torch.linspace(data_clean["y"].min(), data_clean["y"].max(), 15),  torch.linspace(data_clean["z"].min(), data_clean["z"].max(), 15))
-    manifold_basis = torch.stack([xi.flatten(), yi.flatten(), zi.flatten()], axis = -1).to(torch.float32)
-    m = [3,3,3]
-    c = 4.0
-    active_dims = [0,1,2]
-    n_dims = len(active_dims)
-    torch.set_default_dtype(torch.float32)
-    timesteps = data_clean.groupby("tag-local-identifier").apply(lambda x: x["total_time"].to_numpy()).reset_index()[0].to_list()
-    trajectory_raw = data_clean.groupby("tag-local-identifier").apply(lambda x: x[["x","y","z"]].to_numpy()).reset_index()[0]
-    trajectories = [torch.from_numpy(item).to(torch.float32) for item in trajectory_raw]
-    start_points = torch.from_numpy(np.stack([item[0,:] for item in trajectory_raw], axis = 0)).to(torch.float32)
-
-    start_velo = torch.from_numpy(np.stack([np.gradient(traj,time, edge_order = 2, axis = 0)[0,:] for traj, time  in zip(trajectory_raw, timesteps)], axis = 0)).to(torch.float32)
-
-
-    sample_basis = torch.from_numpy(data[["x","y","z"]]).to(torch.float32) ### only construct basis from whatever points we have 
-
-    initial_conditions = torch.hstack((start_points, start_velo))
-
-    # visualize_training_data_sphere(sample_basis, num_samps)
-
-    print("Training whales")
-    model, preds = train_batch(trajectories, initial_conditions, epochs = 100,  n = n_dims,
-                    t = [torch.from_numpy(timestep).to(torch.float32) for timestep in timesteps],  
-                    return_preds=keep_preds, val=val, loss_type = loss_type, basis=sample_basis, c=c, m=m,active_dims=active_dims)
-    
     
 
 
