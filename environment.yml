@@ -1,17 +1,17 @@
-name: curvature-estimation
+name: approx-hmc
 channels: 
   - pytorch
   - nvidia
   - conda-forge
 dependencies:
-  - python >= 3.11
+  - python=3.11
   - pip
   - pytorch 
   - torchvision 
   - torchaudio 
   - pytorch-cuda=11.8 
   - matplotlib
+  - geomstats
   - pip:
     - torchdyn
     - emlp
-    - geomstats

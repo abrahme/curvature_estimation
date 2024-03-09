@@ -1,186 +1,77 @@
 import torch
-from geomloss.samples_loss import SamplesLoss
 from torchdyn.core import NeuralODE
-from typing import List
 import torch.nn as nn
-from .hsgp import HSGPExpQuadWithDerivative
-from .manifold import GaussianProcessRiemmanianMetric, GaussianProcessRiemmanianMetricSymmetricCircle, GaussianProcessRiemmanianMetricSymmetricSphere
+from .manifold import NeuralRiemmanianMetric, GPRiemmanianMetric
+from .neural import PSD, PSDGP
+from typing import Union
 
 
 
-class _ODEFunc(nn.Module):
-    def __init__(self, module: GaussianProcessRiemmanianMetric):
-        super(_ODEFunc, self).__init__()
+
+
+
+class ODEFunc(nn.Module):
+    def __init__(self, module:Union[NeuralRiemmanianMetric, GPRiemmanianMetric]):
+        super(ODEFunc, self).__init__()
         self.module = module
     def forward(self, t, x, *args, **kwargs):
         ode_eq = self.module.geodesic_equation(torch.hsplit(x,2), t)
         return ode_eq
 
-class ODEBlock(nn.Module):
-    def __init__(self, odefunc: nn.Module, solver: str = 'dopri5',
-                 sensitivity:str = 'autograd',
-                 rtol: float = 1e-4, atol: float = 1e-4):
-        super(ODEBlock, self).__init__()
-        self.odefunc = _ODEFunc(odefunc)
-        self.ode_solver = NeuralODE(self.odefunc, solver = solver, 
-                                    sensitivity=sensitivity, atol=atol, rtol=rtol)
-    
-    def forward(self, X: torch.Tensor, integration_time):
-
-        _, out = self.ode_solver(X, integration_time)
-        return out
+class NNODE(nn.Module):
+    def __init__(self, odefunc: ODEFunc, sensitivity="adjoint", solver="dopri5", atol=1e-3, rtol=1e-3) -> None:
+        super(NNODE, self).__init__()
+        self.odefunc = odefunc
+        self.neural_ode_layer = NeuralODE(self.odefunc, solver = solver, sensitivity=sensitivity, atol=atol, rtol=rtol)
+    def forward(self, x, t, *args, **kwargs):
+        return self.neural_ode_layer.forward(x, t)
 
 class RiemannianAutoencoder(nn.Module):
 
-    def __init__(self, n: int,t: int,  m: List[int], c: float, regularization: float, basis, active_dims: List, loss_type: str = "L2"):
+    def __init__(self, n: int, hidden_dim: int,  t: int, loss_type: str = "L2"):
         super(RiemannianAutoencoder, self).__init__()
-        d = int(n*(n+1)/2)
-        self.gp_components = nn.ModuleList([HSGPExpQuadWithDerivative(m, c, active_dims) for _ in range(d)])
-        for gp_component in self.gp_components:
-            gp_component.prior_linearized(basis) ### initialize basis
-        self.metric_space = GaussianProcessRiemmanianMetric(n, self.gp_components)
-        self.ode_layer = ODEBlock(self.metric_space)
+
+        self.metric_space = NeuralRiemmanianMetric(dim = n, metric_func=PSD(input_dim = n, hidden_dim=hidden_dim, diag_dim = n))
+        self.ode_layer = NNODE(odefunc=ODEFunc(self.metric_space))
         self.n = n ### dimension of manifold
-        self.d = d ### number of free functions
         self.t = t ### timepoints to extend
-        self.regularization = regularization
-        self.basis = basis
+
         self.loss_type = loss_type
 
     def forward(self,initial_conditions):
         time_steps = torch.linspace(0.0,1.0,self.t)
-        predicted_vals = self.ode_layer(initial_conditions, time_steps)
+        _, predicted_vals = self.ode_layer(initial_conditions, time_steps)
         split_size = self.n
-        return predicted_vals[:,:,0:split_size]
+        return predicted_vals[...,:split_size]
+ 
 
-    
-    def loss(self, predicted_vals, actual_vals, val = False):
-        
-        if self.loss_type == "L2":
-            reconstruction_loss = nn.MSELoss()(predicted_vals,actual_vals)
-        elif self.loss_type == "Hausdorff":
-            reconstruction_loss = torch.FloatTensor([0.0])
-            for i in range(predicted_vals.shape[0]):
-                reconstruction_loss += SamplesLoss("sinkhorn")(predicted_vals[i], actual_vals[i])
-        if not val:
-            reconstruction_loss = reconstruction_loss + self.parameter_loss() * (1/(10 ** (self.n + 1)))
-        
-        if self.regularization > 0:
-            if not val:
-                reconstruction_loss = self.prior_loss() + reconstruction_loss
-        return reconstruction_loss
-    
-    def parameter_loss(self):
-        parameter_loss = torch.FloatTensor([0.0])
-        for gp in self.gp_components:
-            parameter_loss += torch.square(gp._beta).mean()/len(self.gp_components)
-            parameter_loss += torch.mean(gp.ls)/len(self.gp_components)
-        return parameter_loss
+class GPRiemannianAutoencoder(nn.Module):
 
-    
-    def prior_loss(self):
-        #### lie derivative loss with symmetry of circle
-        ### TODO generalize to other symmetries 
-        christoffels = self.metric_space.christoffels(self.basis)
-        prior_loss = nn.MSELoss()(self.basis[:,0].view(-1,1,1)*christoffels[:,1,0:2,0:2], self.basis[:,1].view(-1,1,1)*christoffels[:,0,0:2,0:2])
-        return prior_loss * torch.FloatTensor([self.regularization]) 
+    def __init__(self, n: int, basis: torch.Tensor,  t: int, loss_type: str = "L2"):
+        super(GPRiemannianAutoencoder, self).__init__()
 
-
-
-class SymmetricRiemannianAutoencoder(nn.Module):
-    def __init__(self, n: int,t: int,  m: List[int], c: float,  basis, active_dims: List, loss_type: str = "L2"):
-        super(SymmetricRiemannianAutoencoder, self).__init__()
-        d = int(n*(n+1)/2)
-        self.gp_components = nn.ModuleList([HSGPExpQuadWithDerivative(m, c, active_dims) for _ in range(d)])
-        for gp_component in self.gp_components:
-            gp_component.prior_linearized(basis) ### initialize basis
-        self.metric_space = GaussianProcessRiemmanianMetricSymmetricCircle(n, self.gp_components)
-        self.ode_layer = ODEBlock(self.metric_space)
+        self.metric_space = GPRiemmanianMetric(dim = n, metric_func=PSDGP(input_dim = n, diag_dim = n, basis = basis))
+        self.ode_layer = NNODE(odefunc=ODEFunc(self.metric_space))
         self.n = n ### dimension of manifold
-        self.d = d ### number of free functions
         self.t = t ### timepoints to extend
 
-        self.basis = basis
         self.loss_type = loss_type
 
     def forward(self,initial_conditions):
         time_steps = torch.linspace(0.0,1.0,self.t)
-        predicted_vals = self.ode_layer(initial_conditions, time_steps)
+        _, predicted_vals = self.ode_layer(initial_conditions, time_steps)
         split_size = self.n
-        return predicted_vals[:,:,0:split_size]
+        return predicted_vals[...,:split_size]
 
-    
-    def loss(self, predicted_vals, actual_vals, val = False):
-        if self.loss_type == "L2":
-            reconstruction_loss = nn.MSELoss()(predicted_vals,actual_vals)
-        elif self.loss_type == "Hausdorff":
-            reconstruction_loss = torch.FloatTensor([0.0])
-            for i in range(predicted_vals.shape[0]):
-                reconstruction_loss += SamplesLoss("sinkhorn")(predicted_vals[i], actual_vals[i])
-        if not val:
-            reconstruction_loss = reconstruction_loss + self.parameter_loss() * (1/(10 ** (self.n + 1)))
-        return reconstruction_loss
-    
-    def parameter_loss(self):
-        parameter_loss = torch.FloatTensor([0.0])
-        for gp in self.gp_components:
-            parameter_loss += torch.square(gp._beta).mean()/len(self.gp_components)
-            parameter_loss += torch.mean(gp.ls)/len(self.gp_components)
-
-        return parameter_loss
-
-
-class SymmetricRiemannianAutoencoderSphere(nn.Module):
-    def __init__(self, n: int,t: int,  m: List[int], c: float,  basis, active_dims: List, loss_type: str = "L2"):
-        super(SymmetricRiemannianAutoencoderSphere, self).__init__()
-        d = int(n*(n+1)/2)
-        self.gp_components = nn.ModuleList([HSGPExpQuadWithDerivative(m, c, active_dims) for _ in range(d)])
-        for gp_component in self.gp_components:
-            gp_component.prior_linearized(basis) ### initialize basis
-        self.metric_space = GaussianProcessRiemmanianMetricSymmetricSphere(n, self.gp_components)
-        self.ode_layer = ODEBlock(self.metric_space)
-        self.n = n ### dimension of manifold
-        self.d = d ### number of free functions
-        self.t = t ### timepoints to extend
-
-        self.basis = basis
-        self.loss_type = loss_type
-
-    def forward(self,initial_conditions):
-        time_steps = torch.linspace(0.0,1.0,self.t)
-        predicted_vals = self.ode_layer(initial_conditions, time_steps)
-        split_size = self.n
-        return predicted_vals[:,:,0:split_size]
-
-    
-    def loss(self, predicted_vals, actual_vals, val = False):
-        if self.loss_type == "L2":
-            reconstruction_loss = nn.MSELoss()(predicted_vals,actual_vals)
-        elif self.loss_type == "Hausdorff":
-            reconstruction_loss = torch.FloatTensor([0.0])
-            for i in range(predicted_vals.shape[0]):
-                reconstruction_loss += SamplesLoss("sinkhorn")(predicted_vals[i], actual_vals[i])
-        if not val:
-            reconstruction_loss = reconstruction_loss + self.parameter_loss() * (1/(10 ** (self.n + 1)))
-        return reconstruction_loss
-    
-    def parameter_loss(self):
-        parameter_loss = torch.FloatTensor([0.0])
-        for gp in self.gp_components:
-            parameter_loss += torch.square(gp._beta).mean()/len(self.gp_components)
-            parameter_loss += torch.mean(gp.ls)/len(self.gp_components)
-
-        return parameter_loss
     
 class VanillaAutoencoder(nn.Module):
     def __init__(self, n: int,t: int, loss_type: str = "L2"):
         super(VanillaAutoencoder, self).__init__()
-
-        self.ode_layer = ODEBlockMLP(nn.Sequential(
+        self.ode_layer = nn.Sequential(
         nn.Linear(2*n, 16),
         nn.Tanh(),
         nn.Linear(16, 2*n)
-    ))
+    )
         self.n = n ### dimension of manifold
         self.t = t ### timepoints to extend
 
@@ -190,16 +81,12 @@ class VanillaAutoencoder(nn.Module):
         time_steps = torch.linspace(0.0,1.0,self.t)
         predicted_vals = self.ode_layer(initial_conditions, time_steps)
         split_size = self.n
-        return predicted_vals[:,:,0:split_size]
+        return predicted_vals[...,:split_size]
 
     
     def loss(self, predicted_vals, actual_vals, val = False):
         if self.loss_type == "L2":
             reconstruction_loss = nn.MSELoss()(predicted_vals,actual_vals)
-        elif self.loss_type == "Hausdorff":
-            reconstruction_loss = torch.FloatTensor([0.0])
-            for i in range(predicted_vals.shape[0]):
-                reconstruction_loss += SamplesLoss("sinkhorn")(predicted_vals[i], actual_vals[i])
         return reconstruction_loss
     
 
