@@ -31,15 +31,9 @@ def calc_eigenvectors(
     m_star = int(np.prod(m))
     c = 1.0 / torch.sqrt(L)
     term1 = torch.sqrt(eigvals)
-    # term2 = torch.tile(Xs, (m_star,)) + L
     term2 = torch.repeat_interleave(Xs[:, None, :], m_star, 1) + L
     sin_term = torch.sin(term1 * term2) * c
     return torch.prod(sin_term, dim = -1)
-
-
-
-
-
 
 class HSGPExpQuadWithDerivative(nn.Module):
     def __init__(self, m, c, active_dims, output_dim, basis,

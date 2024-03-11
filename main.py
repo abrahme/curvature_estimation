@@ -7,7 +7,8 @@ import pandas as pd
 from typing import List
 from models.train import train, train_vanilla_autoencoder
 from geomstats.geometry.hypersphere import Hypersphere
-from data.toy_examples import create_geodesic_pairs_circle, create_geodesic_pairs_circle_hemisphere, create_geodesic_pairs_sphere, create_geodesic_pairs_sphere_hemisphere
+from geomstats.information_geometry.normal import NormalDistributions
+from data.toy_examples import create_geodesic_pairs_circle, create_geodesic_pairs_circle_hemisphere, create_geodesic_pairs_sphere, create_geodesic_pairs_sphere_hemisphere, create_geodesic_pairs_normal_dist
 from visualization.visualize import  visualize_convergence, visualize_convergence_sphere
 
 
@@ -417,10 +418,54 @@ def circle_autoencoder_hemisphere_with_n(sample_sizes: List[int], noise_level: L
 
 
 
+def normal_dist_metric_with_n(sample_sizes: List[int], noise_level: float,timesteps:int, keep_preds:bool = False, val:bool = True, loss_type:str = "L2", model_type:str = "neural"):
+
+    n_dims = 2
+    losses = []
+    latent_space = NormalDistributions(sample_dim = n_dims - 1, equip=True)
+    for noise in noise_level:
+        for num_samps in sample_sizes:
+            torch.set_default_dtype(torch.float32)
+            trajectories, start_points, start_velo, val_trajectories, val_start_points, val_start_velo, val_trajectories_clean = create_geodesic_pairs_normal_dist(num_samps, timesteps, noise = 1/noise)
+            sample_basis = torch.reshape(trajectories,(-1, n_dims)) ### only construct basis from whatever points we have 
+            val_sample_basis = torch.reshape(val_trajectories_clean,(-1, n_dims))
+            initial_conditions = torch.hstack((start_points, start_velo))
+            val_initial_conditions = torch.hstack((val_start_points, val_start_velo))
+            
+            print("Training normal metric without prior")
+            model, preds = train(trajectories, initial_conditions, epochs = 100, n = n_dims,
+                            t = timesteps, val_initial_conditions=val_initial_conditions, val_input_trajectories=val_trajectories_clean,
+                     return_preds=keep_preds, val=val, loss_type = loss_type, model_type = model_type)
+            
+            with torch.no_grad():
+                val_generated_trajectories = model.forward(val_initial_conditions)
+                val_predicted_trajectories = torch.permute(val_generated_trajectories, (1,0,2))
+                plot_convergence([torch.reshape(val_predicted_trajectories, (-1, n_dims))], val_sample_basis,n = num_samps,  skip_every = 10, val = val, noise=noise, prior = False)
+                val_geodesic_distance = latent_space.metric.dist(latent_space.projection(torch.reshape(val_predicted_trajectories, (-1, n_dims))), val_sample_basis).mean()
+                losses.append({"loss_val":val_geodesic_distance, "n": num_samps, "noise": 1/noise, "loss_type": "geodesic"})
+                losses.append({"loss_val":MSELoss()(val_predicted_trajectories, val_trajectories).item(),
+                              "n": num_samps, "noise": 1/noise, "loss_type": "model"})  
+                losses.append({"loss_val":MSELoss()(val_predicted_trajectories,val_trajectories_clean).item(),
+                              "n": num_samps, "noise": 1/noise, "loss_type": "model_clean"})   
+            if keep_preds:
+                plot_convergence(preds, sample_basis, skip_every=30, n = num_samps,  noise=noise, prior = False )
+    
+    prior_path = "normal"
+    
+    directory_path = Path(f"data/losses/normal/normal_distribution/{prior_path}")
+
+    # Check if the directory exists
+    if not directory_path.exists():
+        # Create the directory
+        directory_path.mkdir(parents=True, exist_ok=True)
+        print(f"Directory '{directory_path}' created.")
+    else:
+        print(f"Directory '{directory_path}' already exists.")
+    pd.DataFrame(losses).to_csv(f"{directory_path}/losses.csv", index=False)
 
 
 if __name__ == "__main__":
-
+    # torch.set_default_device('cuda')
     parser = argparse.ArgumentParser(description="Arguments for fitting manifold estimation model")
     # Add command-line arguments
     parser.add_argument("--manifold", type = str, help = "which type of manifold", default = "sphere")
@@ -460,7 +505,8 @@ if __name__ == "__main__":
                 sphere_metric_with_n(sample_sizes = args.sample_sizes, noise_level = args.noise, keep_preds=args.keep_preds, timesteps=args.timesteps, loss_type=args.loss, model_type=args.model_type)
             else:
                 sphere_autoencoder_with_n(sample_sizes=args.sample_sizes, noise_level=args.noise, timesteps=args.timesteps, keep_preds=args.keep_preds, val = args.val, loss_type = args.loss)
-
+    elif args.manifold == "normal":
+        normal_dist_metric_with_n(sample_sizes=args.sample_sizes, noise_level=args.noise, timesteps=args.timesteps, keep_preds=args.keep_preds, val = args.val, loss_type =args.loss, model_type = args.model_type)
 
     
         
