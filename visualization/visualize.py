@@ -1,6 +1,7 @@
 import matplotlib.pyplot as plt
 from typing import List
 import numpy as np
+from scipy.interpolate import CubicSpline
 from models.model import RiemannianAutoencoder
 import torch
 from pathlib import Path
@@ -10,19 +11,17 @@ from pathlib import Path
 
 def visualize_convergence(pred_trajectories: np.ndarray, actual_trajectories: np.ndarray, n:int, epoch_num: int,  val: bool, noise: int, hemisphere:bool = False,penalty: float = 0,  prior:bool = False, autoencoder:bool = False):
 
-    plt.scatter(actual_trajectories[:,0], actual_trajectories[:,1], alpha=.3,color='blue', label = "Actual")
-    plt.scatter(pred_trajectories[:,0], pred_trajectories[:,1], color = "red", alpha = .3, label = "Predicted")
-    theta = np.linspace(0, 2 * np.pi, 100)
+    ax = plt.figure().add_subplot()
 
-    x_circle =  np.cos(theta)
-    y_circle =  np.sin(theta)
-
-    # Plot the circle
-    plt.plot(x_circle, y_circle, color='red', linestyle='dashed', label='Manual Circle')
-    plt.xlim((-1.5,1.5))
-    plt.ylim((-1.5,1.5))
-    plt.xticks(fontsize=15)
-    plt.yticks(fontsize=15)
+    n, T, _ = pred_trajectories.shape
+    time = np.linspace(0, 1, 200)
+    for i in range(n):
+        predicted_smooth = CubicSpline(np.linspace(0,1, T), pred_trajectories[i])(time)
+        actual_smooth = CubicSpline(np.linspace(0, 1, T), actual_trajectories[i])(time)
+        if i > 2: 
+            break
+        ax.plot(predicted_smooth[:,0], predicted_smooth[:,1], color = "red", label = "prediction")
+        ax.plot(actual_smooth[:, 0], actual_smooth[:, 1], label = "actual", color = "blue")
     prior_path = "normal" 
     if prior:
         if penalty > 0:
@@ -52,8 +51,19 @@ def visualize_convergence(pred_trajectories: np.ndarray, actual_trajectories: np
 
 def visualize_convergence_sphere(pred_trajectories: np.ndarray, actual_trajectories: np.ndarray, n:int, noise:int,  epoch_num: int, hemisphere:bool = False,penalty: float = 0,  prior:bool = False, val:bool = False):
     ax = plt.figure().add_subplot(projection='3d')
-    ax.scatter(actual_trajectories[:,0], actual_trajectories[:,1], actual_trajectories[:,2], alpha=.3,color='blue', label = "Actual")
-    ax.scatter(pred_trajectories[:,0], pred_trajectories[:,1], pred_trajectories[:,2], alpha=.3,color='red', label = "Predicted")
+
+    n, T, _ = pred_trajectories.shape
+    
+    time = np.linspace(0, T, 200)
+
+    for i in range(n):
+        predicted_smooth = CubicSpline(time, pred_trajectories[i])(time)
+        actual_smooth = CubicSpline(time, actual_trajectories[i])(time)
+        if i > 2: 
+            break
+        ax.plot(actual_smooth[:,0], actual_smooth[:,1], actual_smooth[:,2], alpha=.3,color='blue', label = "Actual")
+        ax.plot(predicted_smooth[:,0], predicted_smooth[:,1], predicted_smooth[:,2], alpha=.3,color='red', label = "Predicted")
+
 
 
     theta = np.linspace(0, 2 * np.pi, 10)

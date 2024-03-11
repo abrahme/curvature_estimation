@@ -18,7 +18,7 @@ def plot_convergence(preds: List[np.ndarray], actual: np.ndarray, skip_every: in
     num_epochs = len(preds)
     indices = range(0, num_epochs, skip_every)
     for index in indices:
-        visualize_convergence(torch.reshape(preds[index],(-1, 2)), actual,epoch_num=index,n=n, penalty=penalty, val = val, noise=noise, hemisphere=hemisphere, prior = prior, autoencoder=autoencoder)
+        visualize_convergence(preds[index], actual,epoch_num=index,n=n, penalty=penalty, val = val, noise=noise, hemisphere=hemisphere, prior = prior, autoencoder=autoencoder)
 
 def plot_convergence_sphere(preds: List[np.ndarray], actual: np.ndarray, skip_every: int, n:int, penalty: float = 0, val: bool = False, hemisphere:bool = False, prior:bool = False, noise: int = 0):
     num_epochs = len(preds)
@@ -101,7 +101,7 @@ def circle_metric_with_n(sample_sizes: List[int], noise_level: float,timesteps:i
             with torch.no_grad():
                 val_generated_trajectories = model.forward(val_initial_conditions)
                 val_predicted_trajectories = torch.permute(val_generated_trajectories, (1,0,2))
-                plot_convergence([torch.reshape(val_predicted_trajectories, (-1, n_dims))], val_sample_basis,n = num_samps,  skip_every = 10, val = val, noise=noise, prior = False)
+                plot_convergence([val_predicted_trajectories], val_trajectories,n = num_samps,  skip_every = 10, val = val, noise=noise, prior = False)
                 val_geodesic_distance = latent_space.metric.dist(latent_space.projection(torch.reshape(val_predicted_trajectories, (-1, n_dims))), val_sample_basis).mean()
                 losses.append({"loss_val":val_geodesic_distance, "n": num_samps, "noise": 1/noise, "loss_type": "geodesic"})
                 losses.append({"loss_val":MSELoss()(val_predicted_trajectories, val_trajectories).item(),
@@ -109,7 +109,7 @@ def circle_metric_with_n(sample_sizes: List[int], noise_level: float,timesteps:i
                 losses.append({"loss_val":MSELoss()(val_predicted_trajectories,val_trajectories_clean).item(),
                               "n": num_samps, "noise": 1/noise, "loss_type": "model_clean"})   
             if keep_preds:
-                plot_convergence(preds, sample_basis, skip_every=30, n = num_samps,  noise=noise, prior = False )
+                plot_convergence(preds, trajectories, skip_every=30, n = num_samps,  noise=noise, prior = False )
     
     prior_path = "normal"
     
@@ -440,7 +440,7 @@ def normal_dist_metric_with_n(sample_sizes: List[int], noise_level: float,timest
             with torch.no_grad():
                 val_generated_trajectories = model.forward(val_initial_conditions)
                 val_predicted_trajectories = torch.permute(val_generated_trajectories, (1,0,2))
-                plot_convergence([torch.reshape(val_predicted_trajectories, (-1, n_dims))], val_sample_basis,n = num_samps,  skip_every = 10, val = val, noise=noise, prior = False)
+                plot_convergence([val_predicted_trajectories], val_trajectories,n = num_samps,  skip_every = 10, val = val, noise=noise, prior = False)
                 val_geodesic_distance = latent_space.metric.dist(latent_space.projection(torch.reshape(val_predicted_trajectories, (-1, n_dims))), val_sample_basis).mean()
                 losses.append({"loss_val":val_geodesic_distance, "n": num_samps, "noise": 1/noise, "loss_type": "geodesic"})
                 losses.append({"loss_val":MSELoss()(val_predicted_trajectories, val_trajectories).item(),
@@ -448,7 +448,7 @@ def normal_dist_metric_with_n(sample_sizes: List[int], noise_level: float,timest
                 losses.append({"loss_val":MSELoss()(val_predicted_trajectories,val_trajectories_clean).item(),
                               "n": num_samps, "noise": 1/noise, "loss_type": "model_clean"})   
             if keep_preds:
-                plot_convergence(preds, sample_basis, skip_every=30, n = num_samps,  noise=noise, prior = False )
+                plot_convergence(preds, trajectories, skip_every=30, n = num_samps,  noise=noise, prior = False )
     
     prior_path = "normal"
     
