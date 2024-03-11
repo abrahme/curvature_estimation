@@ -1,0 +1,51 @@
+---
+title: "Metric Estimation from Trajectory Data"
+format: 
+    beamer: 
+        self-contained: true
+editor: visual
+author: Abhi Brahme
+---
+
+
+# Presentation Outline
+
+1.  Problem Statement
+2.  Background Information
+3.  Methods
+4.  Results
+5.  Future Work
+6.  Questions ?
+
+# Goal
+Let $\mathcal{T} = \{ \gamma_i(t) \}_{i=1}^N$ be a finite set of trajectories $\in \mathbb{R}^D$ arising from unknown Riemannian manifold $(M,g)$ equipped with metric $g$, $\mathcal{P} = \{ \phi_i^0\}_{i=1}^N$ be the set of initial conditions (starting point and tangent vector) for observed trajectory $\gamma_i(t)$, and $\mathcal{G}$ be the set of possible Riemannian metric tensors. Furthermore, denote $\hat{\gamma}_i(t)$ as the geodesic trajectory generated on $M$ equipped with estimated metric $\hat{g}$ and initial conditions $\phi^0_i$.
+
+We wish to minimize:
+$L(\hat{g}) =  \frac{1}{N}\sum_{i=1}^N || \gamma_i(t) - \hat{\gamma}_i(t)||_2^2 + \lambda_1 J(\hat{g}) + \lambda_2 K(\hat{g})$
+
+
+# Methods (Estimation Considerations)
+
+1.  We want our estimate of our metric tensor to be smooth (since Riemannian metrics are infinitely differentiable)
+2.  We want our estimate to be robust to reasonable levels of noise
+3.  We want to be able to encode prior information (equivariance to some group(s))
+
+
+# Methods (Metric Tensor Estimation)
+
+
+
+# Methods (Encoding Prior Information)
+
+
+# Results (Circle)
+
+# Results (Sphere)
+
+# Results (Fisher Rao Metric)
+
+
+# Future Work 
+
+
+# Questions ? 
