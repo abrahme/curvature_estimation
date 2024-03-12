@@ -47,10 +47,10 @@ class RiemannianAutoencoder(nn.Module):
 
 class GPRiemannianAutoencoder(nn.Module):
 
-    def __init__(self, n: int, basis: torch.Tensor,  t: int, loss_type: str = "L2"):
+    def __init__(self, n: int, basis: torch.Tensor,  t: int, loss_type: str = "L2", m_val: int = 15):
         super(GPRiemannianAutoencoder, self).__init__()
 
-        self.metric_space = GPRiemmanianMetric(dim = n, metric_func=PSDGP(input_dim = n, diag_dim = n, basis = basis))
+        self.metric_space = GPRiemmanianMetric(dim = n, metric_func=PSDGP(input_dim = n, diag_dim = n, basis = basis, m_val = m_val))
         self.ode_layer = NNODE(odefunc=ODEFunc(self.metric_space))
         self.n = n ### dimension of manifold
         self.t = t ### timepoints to extend

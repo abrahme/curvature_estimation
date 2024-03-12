@@ -107,13 +107,13 @@ class HSGPExpQuadWithDerivative(nn.Module):
      
 class PSDGP(nn.Module):
     '''A GP which outputs a positive semi-definite matrix'''
-    def __init__(self, input_dim, diag_dim, basis):
+    def __init__(self, input_dim, diag_dim, basis, m_val):
         assert diag_dim == input_dim
         super(PSDGP, self).__init__()
         self.diag_dim = diag_dim
         self.off_diag_dim = int(diag_dim * (diag_dim - 1) / 2)
         self.basis = basis
-        self.GP = HSGPExpQuadWithDerivative(active_dims=input_dim, output_dim= diag_dim*(diag_dim+1)//2, basis = basis, m = [5]*diag_dim, c = 4.0)
+        self.GP = HSGPExpQuadWithDerivative(active_dims=input_dim, output_dim= diag_dim*(diag_dim+1)//2, basis = basis, m = [m_val]*diag_dim, c = 4.0)
 
 
     def forward(self, q):

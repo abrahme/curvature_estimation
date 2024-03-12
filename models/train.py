@@ -50,9 +50,9 @@ class EarlyStopping:
 def train(input_trajectories, initial_conditions: torch.Tensor, val_input_trajectories, 
           val_initial_conditions:Tuple[torch.Tensor, torch.Tensor],  epochs,  n, t, hidden_dim = 20,  return_preds:bool = False, val: bool = False, loss_type:str = "L2", model_type:str = "neural"):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    model = RiemannianAutoencoder(n =n,t = t, loss_type =loss_type, hidden_dim=hidden_dim) if model_type == "neural" else GPRiemannianAutoencoder(n = n, t = t, loss_type=loss_type, basis = initial_conditions[...,:n])
+    model = RiemannianAutoencoder(n =n,t = t, loss_type =loss_type, hidden_dim=hidden_dim) if model_type == "neural" else GPRiemannianAutoencoder(n = n, t = t, loss_type=loss_type, basis = initial_conditions[...,:n], m_val=hidden_dim)
     model.to(device)
-    optimizer = optim.Adam(model.parameters(), lr=0.01, weight_decay=1.0)
+    optimizer = optim.Adam(model.parameters(), lr=0.01, weight_decay=1.0) if model_type != "neural" else optim.Adam(model.parameters(), lr=0.01)
     preds = []  
     with torch.no_grad():
         predicted_trajectories = model.forward(initial_conditions.to(device))
@@ -77,7 +77,7 @@ def train(input_trajectories, initial_conditions: torch.Tensor, val_input_trajec
         if return_preds:
             preds.append(torch.permute(predicted_trajectories.detach(), (1,0,2)))
 
-        print(f"Epoch: {epoch + 1}, Loss: {loss.item()}, Val Loss: {val_loss.item()}")
+        print(f"Epoch: {epoch + 1}, Loss: {loss.item()}, Val Loss: {val_loss}")
 
 
 
