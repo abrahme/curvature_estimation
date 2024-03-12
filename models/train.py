@@ -49,18 +49,19 @@ class EarlyStopping:
 
 def train(input_trajectories, initial_conditions: torch.Tensor, val_input_trajectories, 
           val_initial_conditions:Tuple[torch.Tensor, torch.Tensor],  epochs,  n, t, hidden_dim = 20,  return_preds:bool = False, val: bool = False, loss_type:str = "L2", model_type:str = "neural"):
-    
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model = RiemannianAutoencoder(n =n,t = t, loss_type =loss_type, hidden_dim=hidden_dim) if model_type == "neural" else GPRiemannianAutoencoder(n = n, t = t, loss_type=loss_type, basis = initial_conditions[...,:n])
+    model.to(device)
     optimizer = optim.Adam(model.parameters(), lr=0.01, weight_decay=1.0)
     preds = []  
     with torch.no_grad():
-        predicted_trajectories = model.forward(initial_conditions)
-        preds.append(torch.permute(predicted_trajectories.detach(), (1,0,2)))
+        predicted_trajectories = model.forward(initial_conditions.to(device))
+        preds.append(torch.permute(predicted_trajectories.to(device).detach(), (1,0,2)))
     for epoch in range(epochs):
         optimizer.zero_grad()
         # Forward pass
-        predicted_trajectories = model.forward(initial_conditions)
-        loss = nn.MSELoss()(torch.permute(predicted_trajectories, (1,0,2)), input_trajectories.float())
+        predicted_trajectories = model.forward(initial_conditions.to(device))
+        loss = nn.MSELoss()(torch.permute(predicted_trajectories.to(device), (1,0,2)), input_trajectories.to(device).float())
         # Backward pass and optimization
         loss.backward()
         
@@ -69,8 +70,8 @@ def train(input_trajectories, initial_conditions: torch.Tensor, val_input_trajec
         if val:
             model.eval()
             with torch.no_grad():
-                predicted_val_trajectories = model.forward(val_initial_conditions)
-                val_loss = nn.MSELoss()(torch.permute(predicted_val_trajectories.float().detach(), (1,0,2)), val_input_trajectories.float())
+                predicted_val_trajectories = model.forward(val_initial_conditions.to(device))
+                val_loss = nn.MSELoss()(torch.permute(predicted_val_trajectories.float().detach(), (1,0,2)), val_input_trajectories.to(device).float())
         else:
             val_loss = "None"
         if return_preds:

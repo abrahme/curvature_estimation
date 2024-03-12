@@ -24,7 +24,7 @@ def plot_convergence_sphere(preds: List[np.ndarray], actual: np.ndarray, skip_ev
     num_epochs = len(preds)
     indices = range(0, num_epochs, skip_every)
     for index in indices:
-        visualize_convergence_sphere(torch.reshape(preds[index],(-1, 3)), actual,epoch_num=index,n=n, penalty=penalty, val = val, prior = prior, hemisphere = hemisphere, noise=noise)
+        visualize_convergence_sphere(preds[index], actual,epoch_num=index,n=n, penalty=penalty, val = val, prior = prior, hemisphere = hemisphere, noise=noise)
 
 def circle_metric_hemisphere_with_n(sample_sizes: List[int], noise_level: List[float], timesteps:int, keep_preds:bool = False, val:bool = True, loss_type:str = "L2", model_type:str = "neural"):
 
@@ -87,7 +87,6 @@ def circle_metric_with_n(sample_sizes: List[int], noise_level: float,timesteps:i
         for num_samps in sample_sizes:
             torch.set_default_dtype(torch.float32)
             trajectories, start_points, start_velo, val_trajectories, val_start_points, val_start_velo, val_trajectories_clean = create_geodesic_pairs_circle(num_samps, timesteps, noise = 1/noise)
-
             sample_basis = torch.reshape(trajectories,(-1, n_dims)) ### only construct basis from whatever points we have 
             val_sample_basis = torch.reshape(val_trajectories_clean,(-1, n_dims))
             initial_conditions = torch.hstack((start_points, start_velo))
@@ -149,7 +148,7 @@ def sphere_metric_with_n(sample_sizes: List[int], noise_level: List[float], time
             with torch.no_grad():
                 val_generated_trajectories = model.forward(val_initial_conditions)
                 val_predicted_trajectories = torch.permute(val_generated_trajectories, (1,0,2))
-                plot_convergence_sphere([torch.reshape(val_predicted_trajectories, (-1, n_dims))], val_sample_basis,n = num_samps,  skip_every = 30, penalty = 0, val = True, prior = False, hemisphere=False, noise = noise)
+                plot_convergence_sphere([val_predicted_trajectories], val_trajectories_clean,n = num_samps,  skip_every = 30, penalty = 0, val = True, prior = False, hemisphere=False, noise = noise)
 
                 val_geodesic_distance = latent_space.metric.dist(latent_space.projection(torch.reshape(val_predicted_trajectories, (-1, n_dims))), val_sample_basis).sum()/num_samps
                 losses.append({"loss_val":val_geodesic_distance.item(), "n": num_samps, "noise": 1/noise, "loss_type": "geodesic"})
@@ -158,7 +157,7 @@ def sphere_metric_with_n(sample_sizes: List[int], noise_level: List[float], time
                 losses.append({"loss_val": MSELoss()(val_predicted_trajectories, val_trajectories_clean).item(),
                               "n": num_samps, "noise": 1/noise, "loss_type": "model_clean"}) 
             if keep_preds:
-                plot_convergence_sphere(preds, sample_basis, skip_every=30, n = num_samps, penalty = 0, prior = False, hemisphere=False, val=False, noise = noise )
+                plot_convergence_sphere(preds, trajectories, skip_every=30, n = num_samps, penalty = 0, prior = False, hemisphere=False, val=False, noise = noise )
     
         prior_path = "normal"
         
@@ -199,7 +198,7 @@ def sphere_metric_hemisphere_with_n(sample_sizes: List[int], noise_level: List[f
             with torch.no_grad():
                 val_generated_trajectories = model.forward(val_initial_conditions)
                 val_predicted_trajectories = torch.permute(val_generated_trajectories, (1,0,2))
-                plot_convergence_sphere([torch.reshape(val_predicted_trajectories, (-1, n_dims))], val_sample_basis,n = num_samps, penalty = 0, skip_every = 30, val = True, prior = False, hemisphere=True, noise = noise)
+                plot_convergence_sphere([val_predicted_trajectories], val_trajectories_clean,n = num_samps, penalty = 0, skip_every = 30, val = True, prior = False, hemisphere=True, noise = noise)
 
                 val_geodesic_distance = latent_space.metric.dist(latent_space.projection(torch.reshape(val_predicted_trajectories, (-1, n_dims))), val_sample_basis).sum()/num_samps
                 losses.append({"loss_val":val_geodesic_distance.item(), "n": num_samps, "noise": 1/noise, "loss_type": "geodesic"})
@@ -208,7 +207,7 @@ def sphere_metric_hemisphere_with_n(sample_sizes: List[int], noise_level: List[f
                 losses.append({"loss_val":MSELoss()(val_predicted_trajectories, val_trajectories_clean).mean().item(),
                               "n": num_samps, "noise": 1/noise, "loss_type": "model_clean"}) 
             if keep_preds:
-                plot_convergence_sphere(preds, sample_basis, skip_every=30, n = num_samps, penalty = 0, prior = False, hemisphere=True, val=False, noise = noise )
+                plot_convergence_sphere(preds, trajectories, skip_every=30, n = num_samps, penalty = 0, prior = False, hemisphere=True, val=False, noise = noise )
     
         prior_path = "normal"
 
@@ -427,6 +426,7 @@ def normal_dist_metric_with_n(sample_sizes: List[int], noise_level: float,timest
         for num_samps in sample_sizes:
             torch.set_default_dtype(torch.float32)
             trajectories, start_points, start_velo, val_trajectories, val_start_points, val_start_velo, val_trajectories_clean = create_geodesic_pairs_normal_dist(num_samps, timesteps, noise = 1/noise)
+
             sample_basis = torch.reshape(trajectories,(-1, n_dims)) ### only construct basis from whatever points we have 
             val_sample_basis = torch.reshape(val_trajectories_clean,(-1, n_dims))
             initial_conditions = torch.hstack((start_points, start_velo))

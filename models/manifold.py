@@ -43,9 +43,6 @@ class GPRiemmanianMetric(nn.Module):
             k of the derivation is last: math:`mat_{ijk} = \partial_k g_{ij}`.
 
         """
-        # with torch.set_grad_enabled(True):
-        #     base_point = base_point.requires_grad_(True)
-        #     partials = functional.jacobian(self.metric_matrix, base_point, create_graph=True)
         sum_func = lambda x: self.metric_function(x).sum(axis = 0)
         partials = functional.jacobian(sum_func, base_point, create_graph=True)
         return torch.swapaxes(partials, 2,0)
@@ -114,6 +111,10 @@ class GPRiemmanianMetric(nn.Module):
         equation = torch.einsum("...kij,...i->...kj", gamma, velocity)
         equation = -torch.einsum("...kj,...j->...k", equation, velocity)
         return torch.hstack([velocity, equation])
+
+    
+    
+
 
 
 class NeuralRiemmanianMetric(nn.Module):

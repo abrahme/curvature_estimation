@@ -52,7 +52,7 @@ def create_geodesic_pairs_circle(N,time_steps, noise = 0):
     start_tangent_vecs = torch.stack([-1*start_points[:,1] , start_points[:,0]], axis = -1)*omega
     geodesic = space.metric.geodesic(initial_point=start_points, initial_tangent_vec = start_tangent_vecs)
     geodesic_trajectories = torch.unsqueeze(geodesic(t),0) if N == 1 else geodesic(t)
-    noise_vec = torch.randn(*geodesic_trajectories.shape) * noise
+    noise_vec = torch.distributions.Normal(0,1).sample(geodesic_trajectories.shape) * noise
     geodesic_trajectories += noise_vec
 
     val_size = 2*N

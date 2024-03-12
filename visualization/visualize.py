@@ -18,8 +18,6 @@ def visualize_convergence(pred_trajectories: np.ndarray, actual_trajectories: np
     for i in range(n):
         predicted_smooth = CubicSpline(np.linspace(0,1, T), pred_trajectories[i])(time)
         actual_smooth = CubicSpline(np.linspace(0, 1, T), actual_trajectories[i])(time)
-        if i > 2: 
-            break
         ax.plot(predicted_smooth[:,0], predicted_smooth[:,1], color = "red", label = "prediction")
         ax.plot(actual_smooth[:, 0], actual_smooth[:, 1], label = "actual", color = "blue")
     prior_path = "normal" 
@@ -59,8 +57,6 @@ def visualize_convergence_sphere(pred_trajectories: np.ndarray, actual_trajector
     for i in range(n):
         predicted_smooth = CubicSpline(time, pred_trajectories[i])(time)
         actual_smooth = CubicSpline(time, actual_trajectories[i])(time)
-        if i > 2: 
-            break
         ax.plot(actual_smooth[:,0], actual_smooth[:,1], actual_smooth[:,2], alpha=.3,color='blue', label = "Actual")
         ax.plot(predicted_smooth[:,0], predicted_smooth[:,1], predicted_smooth[:,2], alpha=.3,color='red', label = "Predicted")
 
