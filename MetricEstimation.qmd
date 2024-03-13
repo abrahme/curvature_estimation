@@ -10,13 +10,18 @@ author: Abhi Brahme
 
 # Presentation Outline
 
-1.  Goal
-2.  Methods
-3.  Results
-4.  Future Work
-5.  Questions ?
+1.  Motivation
+2.  Sub-Problem
+3.  Methods
+4.  Results
+5.  Future Work
+6.  Questions ?
 
-# Goal
+# Motivation
+1. [Vid 1](https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExajNkbWVxZ2JqMjA4cWdja2w2dTVqcGtpN3h6cXhxYXpqZWZzdzAzeSZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/vaXmIRpTTbjnG/giphy.gif)
+2. [Vid 2](https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExejMxYm5iaXR0ZTN5NzFzZm9rbTJ6NjYyb2tyZGs3ZWg5YTZsZ2oxYiZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/M1iqgvQDCdX2/giphy.gif) 
+
+# Sub-Problem
 Let $\mathcal{T} = \{ \gamma_i(t) \}_{i=1}^N$ be a finite set of trajectories $\in \mathbb{R}^D$ arising from unknown Riemannian manifold $(M,g)$ equipped with metric $g$, $\mathcal{P} = \{ \phi_i^0\}_{i=1}^N$ be the set of initial conditions (starting point and tangent vector) for observed trajectory $\gamma_i(t)$, and $\mathcal{G}$ be the set of possible Riemannian metric tensors. Furthermore, denote $\hat{\gamma}_i(t)$ as the geodesic trajectory generated on $M$ equipped with estimated metric $\hat{g}$ and initial conditions $\phi^0_i$.
 
 We wish to minimize:
