@@ -35,6 +35,14 @@ $L(\hat{g}) =  \frac{1}{N}\sum_{i=1}^N || \gamma_i(t) - \hat{\gamma}_i(t)||_2^2 
 ![Workflow for Tensor Estimation](images/MetricEstimation.png){width=80%}
 
 
+# Geodesic Equation (Methods)
+1. Christoffel Symbols
+    a. $\Gamma^i_{jk} = \frac{1}{2}g^{il}[\partial_j g_{kl} + \partial_k g_{jl} - \partial_l g_{jk}]$
+2. Geodesic Equation in 2D
+    a. $\Ddot{x} + \Gamma^x_{xx}\dot{x}^2 + 2\Gamma^x_{xy}\dot{x}\dot{y} + \Gamma^{x}_{yy}\dot{y}^2 = 0$
+    b. $\Ddot{y} + \Gamma^y_{xx}\dot{x}^2 + 2\Gamma^y_{xy}\dot{x}\dot{y} + \Gamma^{y}_{yy}\dot{y}^2 = 0$
+
+
 # Encoding Prior Information (Methods)
 1. For a manifold $(M,g)$ embedded in $\mathbb{R}^n$, start with a representation of $\theta \in \text{Iso}(M,g)$: $\rho(\theta) \in GL(\mathbb{R}^n)$.
 2.  Identify $\rho(\theta)$ with the flow of a KVF $h^K_\theta$.
