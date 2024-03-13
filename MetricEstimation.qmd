@@ -1,0 +1,125 @@
+---
+title: "Metric Estimation from Trajectory Data"
+format: 
+    beamer: 
+        self-contained: true
+editor: visual
+author: Abhi Brahme
+---
+
+
+# Presentation Outline
+
+1.  Goal
+2.  Methods
+3.  Results
+4.  Future Work
+5.  Questions ?
+
+# Goal
+Let $\mathcal{T} = \{ \gamma_i(t) \}_{i=1}^N$ be a finite set of trajectories $\in \mathbb{R}^D$ arising from unknown Riemannian manifold $(M,g)$ equipped with metric $g$, $\mathcal{P} = \{ \phi_i^0\}_{i=1}^N$ be the set of initial conditions (starting point and tangent vector) for observed trajectory $\gamma_i(t)$, and $\mathcal{G}$ be the set of possible Riemannian metric tensors. Furthermore, denote $\hat{\gamma}_i(t)$ as the geodesic trajectory generated on $M$ equipped with estimated metric $\hat{g}$ and initial conditions $\phi^0_i$.
+
+We wish to minimize:
+$L(\hat{g}) =  \frac{1}{N}\sum_{i=1}^N || \gamma_i(t) - \hat{\gamma}_i(t)||_2^2 + \lambda_1 J(\hat{g}) + \lambda_2 K(\hat{g})$
+
+
+# Estimation Considerations (Methods)
+
+1.  We want our estimate of our metric tensor to be smooth (since Riemannian metrics are infinitely differentiable)
+2.  We want our estimate to be robust to reasonable levels of noise
+3.  We want to be able to encode prior information (equivariance to some group(s))
+
+
+# Metric Tensor Inference (Methods)
+
+![Workflow for Tensor Estimation](images/MetricEstimation.png){width=80%}
+
+
+# Encoding Prior Information (Methods)
+1. For a manifold $(M,g)$ embedded in $\mathbb{R}^n$, start with a representation of $\theta \in \text{Iso}(M,g)$: $\rho(\theta) \in GL(\mathbb{R}^n)$.
+2.  Identify $\rho(\theta)$ with the flow of a KVF $h^K_\theta$.
+3. Create the integral curve of $K$ which starts at the point $p \in M$: $\gamma(\theta) = h^K_\theta(p)$ such that $\gamma(0) = h^K_0(p) = p$.
+4. Solve for the KVF which amounts to solving the ODE:
+
+    $\frac{d \gamma }{d\theta}|_{\theta = 0} = K|_{\gamma(0) = p}$
+5. Substitute $K$ into Killing's equation 
+6. Use Killing's equation to constrain the Christoffel symbols as in equation. 
+
+# Encoding Prior Information: $SO(2)$ (Methods)
+
+
+1. :::{=latex}
+$\rho(\theta \in SO(2)) = \begin{pmatrix}
+    \cos \theta & -\sin \theta\\
+    \sin \theta & \cos \theta
+    \end{pmatrix}$
+:::
+
+2. :::{=latex}
+$h^X_\theta = \begin{pmatrix}
+    \cos \theta & -\sin \theta\\
+    \sin \theta & \cos \theta
+\end{pmatrix}$
+:::
+3. :::{=latex}
+$\gamma(\theta) = \begin{pmatrix}
+    \cos \theta & -\sin \theta\\
+    \sin \theta & \cos \theta
+\end{pmatrix}
+\begin{pmatrix}
+x\\
+y
+\end{pmatrix} = \begin{pmatrix}
+x\cos\theta - y\sin\theta\\
+x\sin\theta + y\cos\theta
+\end{pmatrix}$
+:::
+4. :::{=latex} 
+$K^x = -y; \; K^y = x$
+:::
+5. :::{=latex} 
+$\Gamma_{xx}^x y = \Gamma_{xx}^y x; \; \Gamma_{yy}^x y = \Gamma_{yy}^y x; \; \Gamma_{xy}^x y = \Gamma_{xy}^y x$
+:::
+
+
+# Results (Circle)
+::: {#fig-circle layout-ncol=2}
+
+![Noise](images/n_loss_circle.png){#fig-noise}
+
+![N](images/n_loss_circle.png){#fig-N}
+
+
+Empirical Model Performance
+:::
+
+# Results (Circle)
+
+::: {#fig-hemi-circle layout-nrow=2}
+
+![NNODE (Train)](images/autoencoder_10_10_train.png){#fig-nnode-train height=50%}
+
+![NNODE (Validation)](images/autoencoder_10_10_val.png){#fig-nnode-val height=50%}
+
+![Model (Train)](images/explicit_prior_10_10_train.png){#fig-explicit-train height=50%}
+
+![Model (Validation)](images/explicit_prior_10_10_val.png){#fig-explicit-val height=50%}
+
+Visual Model Performance
+:::
+
+
+# Results (Fisher Rao Metric)
+
+See Notebook
+
+
+# Future Work 
+
+1. Analysis of Asymptotic Properties
+2. Uniqueness of Recovered Metric
+3. Extend to pseudo-Riemannian metrics
+4. Use real world data & extract Ricci Curvature, Laplacian etc. 
+
+
+# Questions ? 
