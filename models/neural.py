@@ -183,7 +183,6 @@ class PSDGroup(nn.Module):
     def forward(self, q):
         bs = q.shape[0]
         h = self.equivariant_block(q)
-        print(h.shape)
         diag, off_diag = torch.split(h, [self.diag_dim, self.off_diag_dim], dim=1)
 
         L = torch.diag_embed(nn.Softplus()(diag))

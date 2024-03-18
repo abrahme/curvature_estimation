@@ -1,4 +1,4 @@
-name: approx-hmc
+name: curvature-estimation
 channels: 
   - pytorch
   - nvidia

@@ -3,17 +3,7 @@
 This repository contains the implementation of our paper. 
 
 ### Requirements
-Requirements are noted in the `pyproject.toml` and `poetry.lock` file. 
-
-### Running Experiments
-
-We have several models and subsequent experiments one can run 
-
-#### Models
-1. Explicit Equivariant Metric Learning (only rotational symmetries implemented for now)
-2. Implicit Equivariant Metric Learning (only rotational symmetries implemented for now)
-3. Metric Learning (no prior)
-4. Neural ODE for model comparison 
+Requirements are noted in the `environment.yml` file and require `conda`. In order to create the environment, first clone the `neural-riemannian-metric` branch of the repository. Then inside the `curvature-estimation` directory, run `conda env create -f environment.yml`. Then, in order to activate the environment, run `conda activate curvature-estimation`. 
 
 #### Experiments 
 Currently, in `main.py` we provide entrypoints to running our experiments. We currently have implementations for the circle and sphere. 
