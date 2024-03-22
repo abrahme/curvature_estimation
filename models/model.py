@@ -1,8 +1,8 @@
 import torch
 from torchdyn.core import NeuralODE
 import torch.nn as nn
-from .manifold import NeuralRiemmanianMetric, GPRiemmanianMetric, GroupNeuralRiemmanianMetric
-from .neural import PSD, PSDGP, PSDGroup
+from .manifold import NeuralRiemmanianMetric, GPRiemmanianMetric
+from .neural import PSD, PSDGP
 from typing import Union
 
 
@@ -45,24 +45,24 @@ class RiemannianAutoencoder(nn.Module):
         return predicted_vals[...,:split_size]
  
 
-class GroupRiemannianAutoencoder(nn.Module):
+# class GroupRiemannianAutoencoder(nn.Module):
 
-    def __init__(self, n: int, hidden_dim: int,  t: int, rep_in, rep_out, group, loss_type: str = "L2"):
-        super(GroupRiemannianAutoencoder, self).__init__()
+#     def __init__(self, n: int, hidden_dim: int,  t: int, rep_in, rep_out, group, loss_type: str = "L2"):
+#         super(GroupRiemannianAutoencoder, self).__init__()
 
-        self.metric_space = GroupNeuralRiemmanianMetric(dim = n, metric_func= PSDGroup(hidden_dim=hidden_dim, diag_dim=n,
-                                                                                       group=group, rep_in=rep_in, rep_out=rep_out))
-        self.ode_layer = NNODE(odefunc=ODEFunc(self.metric_space))
-        self.n = n ### dimension of manifold
-        self.t = t ### timepoints to extend
+#         self.metric_space = GroupNeuralRiemmanianMetric(dim = n, metric_func= PSDGroup(hidden_dim=hidden_dim, diag_dim=n,
+#                                                                                        group=group, rep_in=rep_in, rep_out=rep_out))
+#         self.ode_layer = NNODE(odefunc=ODEFunc(self.metric_space))
+#         self.n = n ### dimension of manifold
+#         self.t = t ### timepoints to extend
 
-        self.loss_type = loss_type
+#         self.loss_type = loss_type
 
-    def forward(self,initial_conditions):
-        time_steps = torch.linspace(0.0,1.0,self.t)
-        _, predicted_vals = self.ode_layer(initial_conditions, time_steps)
-        split_size = self.n
-        return predicted_vals[...,:split_size]
+#     def forward(self,initial_conditions):
+#         time_steps = torch.linspace(0.0,1.0,self.t)
+#         _, predicted_vals = self.ode_layer(initial_conditions, time_steps)
+#         split_size = self.n
+#         return predicted_vals[...,:split_size]
 
 
 class GPRiemannianAutoencoder(nn.Module):

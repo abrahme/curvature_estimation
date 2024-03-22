@@ -1,7 +1,7 @@
 import torch 
 import torch.nn as nn
 import numpy as np
-import emlp.nn.pytorch as nn_emlp
+# import emlp.nn.pytorch as nn_emlp
 
 pi = torch.FloatTensor([np.pi])
 
@@ -170,28 +170,28 @@ class PSD(nn.Module):
 
 
 
-class PSDGroup(nn.Module):
-    '''A Neural Net which outputs a positive semi-definite matrix
-        subject to group constraint'''
-    def __init__(self, hidden_dim, diag_dim, rep_in, rep_out, group):
-        super(PSDGroup, self).__init__()
-        self.diag_dim = diag_dim
-        self.off_diag_dim = int(diag_dim * (diag_dim - 1) / 2)
+# class PSDGroup(nn.Module):
+#     '''A Neural Net which outputs a positive semi-definite matrix
+#         subject to group constraint'''
+#     def __init__(self, hidden_dim, diag_dim, rep_in, rep_out, group):
+#         super(PSDGroup, self).__init__()
+#         self.diag_dim = diag_dim
+#         self.off_diag_dim = int(diag_dim * (diag_dim - 1) / 2)
 
-        self.equivariant_block = nn_emlp.EMLP(ch = hidden_dim, rep_in=rep_in, rep_out= rep_out, group = group, num_layers=1)
+#         self.equivariant_block = nn_emlp.EMLP(ch = hidden_dim, rep_in=rep_in, rep_out= rep_out, group = group, num_layers=1)
 
-    def forward(self, q):
-        bs = q.shape[0]
-        h = self.equivariant_block(q)
-        diag, off_diag = torch.split(h, [self.diag_dim, self.off_diag_dim], dim=1)
+#     def forward(self, q):
+#         bs = q.shape[0]
+#         h = self.equivariant_block(q)
+#         diag, off_diag = torch.split(h, [self.diag_dim, self.off_diag_dim], dim=1)
 
-        L = torch.diag_embed(nn.Softplus()(diag))
+#         L = torch.diag_embed(nn.Softplus()(diag))
 
-        ind = np.tril_indices(self.diag_dim, k=-1)
-        flat_ind = np.ravel_multi_index(ind, (self.diag_dim, self.diag_dim))
-        L = torch.flatten(L, start_dim=1)
-        L[:, flat_ind] = off_diag
-        L = torch.reshape(L, (bs, self.diag_dim, self.diag_dim))
+#         ind = np.tril_indices(self.diag_dim, k=-1)
+#         flat_ind = np.ravel_multi_index(ind, (self.diag_dim, self.diag_dim))
+#         L = torch.flatten(L, start_dim=1)
+#         L[:, flat_ind] = off_diag
+#         L = torch.reshape(L, (bs, self.diag_dim, self.diag_dim))
 
-        D = torch.bmm(L, L.permute(0, 2, 1))
-        return D
+#         D = torch.bmm(L, L.permute(0, 2, 1))
+#         return D

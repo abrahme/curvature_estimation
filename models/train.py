@@ -3,7 +3,7 @@ import torch
 import torch.nn as nn
 import numpy as np
 import torch.optim as optim
-from .model import RiemannianAutoencoder, VanillaAutoencoder, GPRiemannianAutoencoder, GroupRiemannianAutoencoder
+from .model import RiemannianAutoencoder, VanillaAutoencoder, GPRiemannianAutoencoder
 
 
 class EarlyStopping:
@@ -27,16 +27,16 @@ class EarlyStopping:
         self.counter = 0
         self.best_score = None
         self.early_stop = False
-        self.val_loss_min = np.Inf
+        self.val_loss_min = 0
         self.delta = delta
         self.trace_func = trace_func
     def __call__(self, val_loss):
 
-        score = -val_loss
+        score = val_loss
 
         if self.best_score is None:
             self.best_score = score
-        elif score < self.best_score + self.delta:
+        elif score > self.best_score + self.delta:
             self.counter += 1
             self.trace_func(f'EarlyStopping counter: {self.counter} out of {self.patience}')
             if self.counter >= self.patience:
@@ -54,6 +54,7 @@ def train(input_trajectories, initial_conditions: torch.Tensor, val_input_trajec
     model.to(device)
     optimizer = optim.Adam(model.parameters(), lr=0.01, weight_decay=1.0) if model_type != "neural" else optim.Adam(model.parameters(), lr=0.01)
     preds = []  
+    early_stopping = EarlyStopping(verbose = True, patience=90, delta = .01)
     with torch.no_grad():
         predicted_trajectories = model.forward(initial_conditions.to(device))
         preds.append(torch.permute(predicted_trajectories.to(device).detach(), (1,0,2)))
@@ -76,50 +77,56 @@ def train(input_trajectories, initial_conditions: torch.Tensor, val_input_trajec
             val_loss = "None"
         if return_preds:
             preds.append(torch.permute(predicted_trajectories.detach(), (1,0,2)))
-
-        print(f"Epoch: {epoch + 1}, Loss: {loss.item()}, Val Loss: {val_loss}")
-
-
-
-    return model, preds
-
-
-
-def train_group(input_trajectories, initial_conditions: torch.Tensor, val_input_trajectories, 
-          val_initial_conditions:Tuple[torch.Tensor, torch.Tensor],  epochs,  n, t, rep_in, rep_out, group,  hidden_dim = 20,  return_preds:bool = False, val: bool = False, loss_type:str = "L2"):
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    model = GroupRiemannianAutoencoder(n = n, t = t, hidden_dim=hidden_dim, rep_in = rep_in, rep_out=rep_out, group = group, loss_type=loss_type)
-    model.to(device)
-    optimizer =  optim.Adam(model.parameters(), lr=0.01)
-    preds = []  
-    with torch.no_grad():
-        predicted_trajectories = model.forward(initial_conditions.to(device))
-        preds.append(torch.permute(predicted_trajectories.to(device).detach(), (1,0,2)))
-    for epoch in range(epochs):
-        optimizer.zero_grad()
-        # Forward pass
-        predicted_trajectories = model.forward(initial_conditions.to(device))
-        loss = nn.MSELoss()(torch.permute(predicted_trajectories.to(device), (1,0,2)), input_trajectories.to(device).float())
-        # Backward pass and optimization
-        loss.backward()
         
-        optimizer.step()
+        early_stopping(val_loss=val_loss)
 
-        if val:
-            model.eval()
-            with torch.no_grad():
-                predicted_val_trajectories = model.forward(val_initial_conditions.to(device))
-                val_loss = nn.MSELoss()(torch.permute(predicted_val_trajectories.float().detach(), (1,0,2)), val_input_trajectories.to(device).float())
-        else:
-            val_loss = "None"
-        if return_preds:
-            preds.append(torch.permute(predicted_trajectories.detach(), (1,0,2)))
+        if early_stopping.early_stop:
+            return model, preds, val_loss
 
         print(f"Epoch: {epoch + 1}, Loss: {loss.item()}, Val Loss: {val_loss}")
 
 
 
-    return model, preds
+
+    return model, preds, val_loss
+
+
+
+# def train_group(input_trajectories, initial_conditions: torch.Tensor, val_input_trajectories, 
+#           val_initial_conditions:Tuple[torch.Tensor, torch.Tensor],  epochs,  n, t, rep_in, rep_out, group,  hidden_dim = 20,  return_preds:bool = False, val: bool = False, loss_type:str = "L2"):
+#     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+#     model = GroupRiemannianAutoencoder(n = n, t = t, hidden_dim=hidden_dim, rep_in = rep_in, rep_out=rep_out, group = group, loss_type=loss_type)
+#     model.to(device)
+#     optimizer =  optim.Adam(model.parameters(), lr=0.01)
+#     preds = []  
+#     with torch.no_grad():
+#         predicted_trajectories = model.forward(initial_conditions.to(device))
+#         preds.append(torch.permute(predicted_trajectories.to(device).detach(), (1,0,2)))
+#     for epoch in range(epochs):
+#         optimizer.zero_grad()
+#         # Forward pass
+#         predicted_trajectories = model.forward(initial_conditions.to(device))
+#         loss = nn.MSELoss()(torch.permute(predicted_trajectories.to(device), (1,0,2)), input_trajectories.to(device).float())
+#         # Backward pass and optimization
+#         loss.backward()
+        
+#         optimizer.step()
+
+#         if val:
+#             model.eval()
+#             with torch.no_grad():
+#                 predicted_val_trajectories = model.forward(val_initial_conditions.to(device))
+#                 val_loss = nn.MSELoss()(torch.permute(predicted_val_trajectories.float().detach(), (1,0,2)), val_input_trajectories.to(device).float())
+#         else:
+#             val_loss = "None"
+#         if return_preds:
+#             preds.append(torch.permute(predicted_trajectories.detach(), (1,0,2)))
+
+#         print(f"Epoch: {epoch + 1}, Loss: {loss.item()}, Val Loss: {val_loss}")
+
+
+
+#     return model, preds
 
 
 
