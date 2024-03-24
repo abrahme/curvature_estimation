@@ -2,8 +2,8 @@ import torch
 import torch.nn as nn
 import numpy as np
 # import emlp.nn.pytorch as nn_emlp
-
-pi = torch.FloatTensor([np.pi])
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+pi = torch.FloatTensor([np.pi]).to(device)
 
 def set_boundary(Xs , c):
     """Set the boundary using the mean-subtracted `Xs` and `c`.  `c` is usually a scalar
@@ -17,7 +17,7 @@ def set_boundary(Xs , c):
 def calc_eigenvalues(L, m):
     """Calculate eigenvalues of the Laplacian."""
     S = torch.meshgrid(*[torch.arange(1, 1 + m[d], dtype=torch.float32) for d in range(len(m))])
-    S_arr = torch.vstack([torch.flatten(s) for s in S]).T
+    S_arr = torch.vstack([torch.flatten(s.to(device)) for s in S]).T
     return torch.square(( pi * S_arr) / (2 * L))
 
 
@@ -39,7 +39,7 @@ def calc_eigenvectors(
 class HSGPExpQuadWithDerivative(nn.Module):
     def __init__(self, m, c, active_dims, output_dim, basis,
                 drop_first: bool = False, parametrization: str = "noncentered",
-                L = None):
+                L = None, device = torch.device("cuda" if torch.cuda.is_available() else "cpu")):
         super(HSGPExpQuadWithDerivative, self).__init__()
         self._drop_first = drop_first
         self.parametrization = parametrization
@@ -47,7 +47,7 @@ class HSGPExpQuadWithDerivative(nn.Module):
         self.n_dims = active_dims
         self._m = m
         self._L = L
-        self._c = torch.FloatTensor([c])
+        self._c = torch.FloatTensor([c]).to(device)
         self._m_star = int(np.prod(m))
         self._beta = nn.Linear(bias = False, in_features=self._m_star, out_features=output_dim)
         self.basis = basis
@@ -149,14 +149,14 @@ class PSD(nn.Module):
         for l in [self.linear1, self.linear2]:
             torch.nn.init.orthogonal_(l.weight) # use a principled initialization
         
-        self.nonlinearity = nn.Tanh()
+        self.nonlinearity = nn.SiLU()
 
     def forward(self, q):
         bs = q.shape[0]
         h = self.nonlinearity( self.linear1(q) )
         diag, off_diag = torch.split(self.linear2(h), [self.diag_dim, self.off_diag_dim], dim=1)
 
-        L = torch.diag_embed(nn.Softplus()(diag))
+        L = torch.diag_embed(nn.Softplus()(diag) + .0001)
 
         ind = np.tril_indices(self.diag_dim, k=-1)
         flat_ind = np.ravel_multi_index(ind, (self.diag_dim, self.diag_dim))
