@@ -156,7 +156,7 @@ class PSD(nn.Module):
         h = self.nonlinearity( self.linear1(q) )
         diag, off_diag = torch.split(self.linear2(h), [self.diag_dim, self.off_diag_dim], dim=1)
 
-        L = torch.diag_embed(nn.Softplus()(diag) + .0001)
+        L = torch.diag_embed(nn.Softplus()(diag) + .001)
 
         ind = np.tril_indices(self.diag_dim, k=-1)
         flat_ind = np.ravel_multi_index(ind, (self.diag_dim, self.diag_dim))

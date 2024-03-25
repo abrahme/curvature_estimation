@@ -4,20 +4,29 @@ from geomstats.information_geometry.normal import NormalDistributions
 from geomstats.geometry.hypersphere import Hypersphere
 from models.train import train
 from models.utils import save_model
-from data.toy_examples import create_geodesic_pairs_normal_dist, create_geodesic_pairs_circle, create_geodesic_pairs_beta_dist, create_geodesic_pairs_sphere
+from data.toy_examples import create_geodesic_pairs_normal_dist, create_geodesic_pairs_circle, create_geodesic_pairs_sphere
 from visualization.visualize import visualize_eigenvectors, visualize_convergence
 
-timesteps = 5
+timesteps = 10
+
+def circle_metric(x):
+    vector_field = torch.matmul(x, torch.tensor([[0.0 , -1.0],[1.0, 0.0]]).to("cuda:0"))
+    return torch.einsum("kj,ki -> kij", vector_field, vector_field)
+
+def fisher_rao_univariate_normal_metric(x):
+    metric =  torch.diag_embed(torch.tensor([1.0, 2.0]).to("cuda:0") / torch.square(x[1]))
+    return metric
 
 experiment_parameters = {
-    "circle": {"sampling_func": lambda N: create_geodesic_pairs_circle(N, time_steps=timesteps, noise = 0),
-               "metric_func": lambda x: Hypersphere(1).metric.metric_matrix(x)},
+
     "normal_distribution": {"sampling_func": lambda N: create_geodesic_pairs_normal_dist(N, time_steps=timesteps, noise = 0),
-                             "metric_func": lambda x: NormalDistributions(1).metric.metric_matrix(x)},
-    "sphere": {"sampling_func": lambda N: create_geodesic_pairs_sphere(N, time_steps=timesteps, noise = 0), "metric_func": None}
+                             "metric_func": lambda x: torch.vmap(fisher_rao_univariate_normal_metric)(x)},
+    "sphere": {"sampling_func": lambda N: create_geodesic_pairs_sphere(N, time_steps=timesteps, noise = 0), "metric_func": None},
+        "circle": {"sampling_func": lambda N: create_geodesic_pairs_circle(N, time_steps=timesteps, noise = 0),
+               "metric_func": circle_metric},
 }
 
-torch.manual_seed(123)
+# torch.manual_seed(123)
 
 num_samples = [5, 100, 1000]
 
@@ -60,12 +69,12 @@ for manifold in manifolds:
             grid = torch.stack((X.flatten(), Y.flatten()), dim=1).to(device)
 
             metric_func = experiment_parameters[manifold]["metric_func"]
-            ground_truth_metric = metric_func(grid.cpu()).to(device)
+            ground_truth_metric = metric_func(grid).to(device)
             batched_eig_vals = torch.vmap(lambda x: torch.linalg.eig(x)[1])
             ground_truth_eigvals = torch.real(batched_eig_vals(ground_truth_metric))
             estimated_metric = model.metric_space.metric_matrix(grid)
             estimated_eig_vals = torch.real(batched_eig_vals(estimated_metric))
-            eig_val_loss = torch.nn.CosineSimilarity()(estimated_eig_vals,ground_truth_eigvals).mean().item()
+            eig_val_loss = torch.abs(torch.nn.CosineSimilarity()(estimated_eig_vals,ground_truth_eigvals)).mean().item()
 
             visualize_eigenvectors(A_true = metric_func, A_learned = model.metric_space.metric_matrix, n = num_points,
                                    x_lims = [-1.5, 1.5], y_lims=[.01,1.5] if manifold == "normal_distribution" else [-1.5,1.5], manifold = manifold)

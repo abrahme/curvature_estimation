@@ -38,8 +38,8 @@ class RiemannianAutoencoder(nn.Module):
 
         self.loss_type = loss_type
 
-    def forward(self,initial_conditions):
-        time_steps = torch.linspace(0.0,1.0,self.t)
+    def forward(self,initial_conditions, t = None):
+        time_steps = torch.linspace(0.0,1.0,self.t)  if t is None else t
         _, predicted_vals = self.ode_layer(initial_conditions, time_steps)
         split_size = self.n
         return predicted_vals[...,:split_size]

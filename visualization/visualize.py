@@ -165,7 +165,7 @@ def visualize_eigenvectors(A_true, A_learned, n, x_lims, y_lims, manifold: str):
     for i in range(n):
         for j in range(n):
             pt = torch.tensor([[X[i, j], Y[i, j]]]).to("cuda:0")
-            M_true = A_true(pt.cpu() if manifold =="normal_distribution" else pt).squeeze().detach()
+            M_true = A_true(pt).squeeze().detach()
             sorted_evals_true, sorted_evecs_true = torch.linalg.eigh(M_true)
             U1_true[i, j] = sorted_evecs_true[0, 0]
             V1_true[i, j] = sorted_evecs_true[1, 0]

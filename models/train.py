@@ -54,7 +54,7 @@ def train(input_trajectories, initial_conditions: torch.Tensor, val_input_trajec
     model.to(device)
     optimizer = optim.Adam(model.parameters(), lr=0.01, weight_decay=0.0) if model_type != "neural" else optim.Adam(model.parameters(), lr=0.01, weight_decay=0.0)
     preds = []  
-    early_stopping = EarlyStopping(verbose = True, patience=90, delta = .01)
+    early_stopping = EarlyStopping(verbose = True, patience=90, delta = 0.0)
     with torch.no_grad():
         predicted_trajectories = model.forward(initial_conditions.to(device))
         preds.append(torch.permute(predicted_trajectories.to(device).detach(), (1,0,2)))
@@ -89,6 +89,37 @@ def train(input_trajectories, initial_conditions: torch.Tensor, val_input_trajec
 
 
     return model, preds, val_loss
+
+def train_irregular_timesteps(input_trajectories: List[torch.tensor], initial_conditions: torch.Tensor, epochs,  n, t: List[torch.tensor], 
+                              hidden_dim = 20, loss_type:str = "L2", model_type:str = "neural"):
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    model = RiemannianAutoencoder(n =n,t = 1, loss_type =loss_type, hidden_dim=hidden_dim) if model_type == "neural" else GPRiemannianAutoencoder(n = n, t = 1, loss_type=loss_type, basis = initial_conditions[...,:n].to(device), m_val=hidden_dim)
+    model.to(device)
+    optimizer = optim.Adam(model.parameters(), lr=0.01, weight_decay=0.0) if model_type != "neural" else optim.Adam(model.parameters(), lr=0.01, weight_decay=0.0)
+    preds = []  
+    for epoch in range(epochs):
+        optimizer.zero_grad()
+        # Forward pass
+        loss = torch.tensor([0.0]).requires_grad_(True)
+        for i, input_trajectory in enumerate(input_trajectories):
+            predicted_trajectory = model.forward(initial_conditions[i][None, ...].to(device), t[i])
+            loss += nn.MSELoss()(torch.permute(predicted_trajectory.to(device), (1,0,2)), input_trajectory.to(device).float())
+
+            if epoch == epochs - 1:
+                preds.append(predicted_trajectory)
+        # Backward pass and optimization
+        loss.backward()
+        
+        optimizer.step()
+
+
+
+        print(f"Epoch: {epoch + 1}, Loss: {loss.item()}, Val Loss: None")
+
+
+
+
+    return model, [pred.detach() for pred in preds]
 
 
 
