@@ -100,10 +100,10 @@ def train_irregular_timesteps(input_trajectories: List[torch.tensor], initial_co
     for epoch in range(epochs):
         optimizer.zero_grad()
         # Forward pass
-        loss = torch.tensor([0.0]).requires_grad_(True)
+        loss = torch.tensor([0.0]).to(device)
         for i, input_trajectory in enumerate(input_trajectories):
-            predicted_trajectory = model.forward(initial_conditions[i][None, ...].to(device), t[i])
-            loss += nn.MSELoss()(torch.permute(predicted_trajectory.to(device), (1,0,2)), input_trajectory.to(device).float())
+            predicted_trajectory = model.forward(initial_conditions[i][None, ...], t[i])
+            loss += nn.MSELoss()(torch.permute(predicted_trajectory, (1,0,2)), input_trajectory[None,...])
 
             if epoch == epochs - 1:
                 preds.append(predicted_trajectory)

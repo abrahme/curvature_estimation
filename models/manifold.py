@@ -360,13 +360,10 @@ class NeuralRiemmanianMetric(nn.Module):
             Riemannian tensor curvature,
             with the contravariant index on the last dimension.
         """
-        if len(self._space.shape) > 1:
-            raise NotImplementedError(
-                "Riemann tensor not implemented for manifolds with points of ndim > 1."
-            )
+
         christoffels = self.christoffels(base_point)
         sum_func = lambda x: self.christoffels(x).sum(axis = 0)
-        jacobian_christoffels = functional.jacobian(sum_func, base_point)
+        jacobian_christoffels = torch.swapaxes(functional.jacobian(sum_func, base_point), 0, 3)
         print(jacobian_christoffels.shape)
 
         prod_christoffels = torch.einsum(
