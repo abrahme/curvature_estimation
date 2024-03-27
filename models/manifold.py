@@ -364,8 +364,6 @@ class NeuralRiemmanianMetric(nn.Module):
         christoffels = self.christoffels(base_point)
         sum_func = lambda x: self.christoffels(x).sum(axis = 0)
         jacobian_christoffels = torch.swapaxes(functional.jacobian(sum_func, base_point), 0, 3)
-        print(jacobian_christoffels.shape)
-
         prod_christoffels = torch.einsum(
             "...ijk,...klm->...ijlm", christoffels, christoffels
         )
