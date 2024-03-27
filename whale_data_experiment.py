@@ -7,7 +7,7 @@ from geomstats.geometry.hypersphere import Hypersphere
 
 
 data = pd.read_csv("whale_data/clean_data.csv")
-keep_whales = np.random.choice(pd.unique(data["individual-local-identifier"]), 10)
+keep_whales = np.random.choice(pd.unique(data["individual-local-identifier"]), 30)
 data = data[data["individual-local-identifier"].isin(keep_whales)]
 feature_data = pd.read_csv("whale_data/feature_data.csv")
 feature_data = feature_data[feature_data["individual-local-identifier"].isin(keep_whales)]
@@ -20,8 +20,8 @@ initial_position = np.concatenate(feature_data.groupby("individual-local-identif
 initial_conditions = torch.from_numpy(np.hstack([initial_position, initial_velocity])).to(device).float()
 
 
-model, predictions = train_irregular_timesteps(trajectory_list, initial_conditions, 1, 3, timestep_list, hidden_dim=100)
+model, predictions = train_irregular_timesteps(trajectory_list, initial_conditions, 500, 3, timestep_list, hidden_dim=100)
 
 
-save_model(model,1000, "whale")
+
 

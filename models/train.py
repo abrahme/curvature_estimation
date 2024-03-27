@@ -1,7 +1,7 @@
 from typing import List, Tuple
 import torch
 import torch.nn as nn
-import numpy as np
+from .utils import save_model
 import torch.optim as optim
 from .model import RiemannianAutoencoder, VanillaAutoencoder, GPRiemannianAutoencoder
 
@@ -111,6 +111,9 @@ def train_irregular_timesteps(input_trajectories: List[torch.tensor], initial_co
         loss.backward()
         
         optimizer.step()
+
+        if ((epoch % 50) == 0) & (epoch > 0):
+            save_model(model,1000, "whale")
 
 
 
